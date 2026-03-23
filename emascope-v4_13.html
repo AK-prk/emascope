@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMAScope v4 — Multi-Timeframe EMA Screener</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  /* Core palette */
+  --bg:#050810;
+  --surface:#080d1a;
+  --surface2:#0b1220;
+  --surface3:#0e1628;
+  --border:#0f1e32;
+  --border2:#162438;
+  --border3:#1d3050;
+
+  /* Text */
+  --text:#e2ecf8;
+  --text2:#8ba8c8;
+  --text3:#3d5a78;
+  --dim:#1e3450;
+
+  /* Brand */
+  --accent:#4f8ef7;
+  --accent2:#7c6fef;
+  --accent-glow:rgba(79,142,247,.15);
+
+  /* Signals */
+  --bull:#00d084;
+  --bear:#f0374e;
+  --touch:#f5a623;
+  --near:#9d7ff5;
+
+  /* Glows */
+  --glow-bull:0 0 20px rgba(0,208,132,.18);
+  --glow-bear:0 0 20px rgba(240,55,78,.18);
+  --glow-touch:0 0 20px rgba(245,166,35,.15);
+  --glow-near:0 0 20px rgba(157,127,245,.15);
+  --glow-accent:0 0 24px rgba(79,142,247,.2);
+
+  /* Typography */
+  --sans:'Space Grotesk',sans-serif;
+  --mono:'Fira Code',monospace;
+
+  /* Layout */
+  --r:7px;
+  --r2:12px;
+}
+
+/* ─────────────────────── BASE ─────────────────────── */
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Animated mesh background */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80vw 60vh at 15% -10%, rgba(79,142,247,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 60vw 50vh at 90% 20%, rgba(124,111,239,.04) 0%, transparent 55%),
+    radial-gradient(ellipse 40vw 30vh at 50% 110%, rgba(0,208,132,.03) 0%, transparent 60%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* Subtle grid lines */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(79,142,247,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,142,247,.025) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+  mask-image:radial-gradient(ellipse at 50% 0%, black 40%, transparent 80%);
+}
+
+/* ─────────────────────── NAV ─────────────────────── */
+.nav{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:6px;
+  height:52px;padding:0 20px;
+  background:rgba(5,8,16,.9);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border2);
+  box-shadow:0 0 0 1px rgba(79,142,247,.04) inset, 0 8px 32px rgba(0,0,0,.4);
+}
+
+.logo{
+  display:flex;align-items:center;gap:10px;
+  font-weight:700;font-size:.95rem;letter-spacing:-.025em;
+  color:var(--text);flex-shrink:0;
+}
+.logo-gem{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(135deg,#4f8ef7 0%,#7c6fef 100%);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 0 1px rgba(255,255,255,.12) inset, var(--glow-accent);
+  position:relative;overflow:hidden;
+}
+.logo-gem::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.25) 0%,transparent 60%);
+}
+.logo-gem svg{width:14px;height:14px;fill:#fff;position:relative}
+
+.v-badge{
+  font-family:var(--mono);font-size:.5rem;font-weight:500;
+  color:var(--text3);background:var(--surface2);
+  padding:2px 6px;border-radius:4px;
+  border:1px solid var(--border2);letter-spacing:.06em;
+  align-self:center;
+}
+
+.demo-tag{
+  font-family:var(--mono);font-size:.56rem;font-weight:600;
+  color:var(--touch);background:rgba(245,166,35,.08);
+  border:1px solid rgba(245,166,35,.18);
+  padding:3px 9px;border-radius:20px;
+  letter-spacing:.06em;
+  animation:breathe 3s ease infinite;
+}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.55}}
+
+.spacer{flex:1}
+
+/* Nav buttons */
+.nbtn{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--sans);font-size:.71rem;font-weight:500;
+  padding:5px 11px;border-radius:var(--r);
+  cursor:pointer;white-space:nowrap;
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--border2);
+  color:var(--text2);
+  transition:all .18s;
+  letter-spacing:-.01em;
+}
+.nbtn:hover{
+  background:rgba(255,255,255,.08);
+  border-color:var(--border3);
+  color:var(--text);
+  transform:translateY(-1px);
+}
+.nbtn:active{transform:translateY(0)}
+.nbtn.accent{
+  background:linear-gradient(135deg,rgba(79,142,247,.15),rgba(124,111,239,.15));
+  border-color:rgba(79,142,247,.25);
+  color:var(--accent);
+}
+.nbtn.accent:hover{
+  background:linear-gradient(135deg,rgba(79,142,247,.25),rgba(124,111,239,.25));
+  border-color:rgba(79,142,247,.4);
+  box-shadow:var(--glow-accent);
+}
+.nbtn.purple{border-color:rgba(157,127,245,.25);color:var(--near)}
+.nbtn.purple:hover{background:rgba(157,127,245,.08);border-color:rgba(157,127,245,.4);box-shadow:var(--glow-near)}
+
+/* ─────────────────────── PROMO STRIP ─────────────────────── */
+.promo{
+  position:relative;overflow:hidden;
+  background:linear-gradient(90deg,rgba(79,142,247,.06),rgba(124,111,239,.08),rgba(79,142,247,.06));
+  border-bottom:1px solid rgba(79,142,247,.1);
+  padding:8px 20px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.promo::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(79,142,247,.06) 50%,transparent 100%);
+  animation:sweep 4s ease-in-out infinite;
+}
+@keyframes sweep{0%{transform:translateX(-100%)}100%{transform:translateX(100%)} }
+.promo-txt{font-size:.76rem;color:var(--text2);flex:1;min-width:180px;line-height:1.5;position:relative}
+.promo-txt strong{color:var(--text);font-weight:600}
+.promo-actions{display:flex;gap:7px;align-items:center;position:relative}
+.promo-actions input{
+  background:rgba(255,255,255,.05);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:.71rem;
+  padding:5px 10px;border-radius:var(--r);outline:none;width:160px;
+  transition:all .18s;
+}
+.promo-actions input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,.1)}
+.promo-actions input::placeholder{color:var(--dim)}
+
+/* ─────────────────────── CTRL BAR ─────────────────────── */
+.ctrl-bar{
+  display:flex;align-items:center;
+  background:rgba(8,13,26,.98);
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;scrollbar-width:none;
+  min-height:40px;
+  position:relative;z-index:5;
+}
+.ctrl-bar::-webkit-scrollbar{display:none}
+
+.mkt-tabs{display:flex;flex-shrink:0;border-right:1px solid var(--border)}
+.mkt{
+  padding:0 14px;height:40px;
+  font-family:var(--sans);font-size:.73rem;font-weight:500;
+  color:var(--text3);cursor:pointer;
+  border:none;border-bottom:2px solid transparent;
+  background:none;white-space:nowrap;
+  transition:all .2s;letter-spacing:-.01em;
+  display:inline-flex;align-items:center;
+}
+.mkt:hover{color:var(--text2);background:rgba(255,255,255,.025)}
+.mkt.on{color:var(--text);border-bottom-color:var(--accent);background:rgba(79,142,247,.06);font-weight:600}
+.mkt.fav-tab{color:var(--touch)}
+.mkt.fav-tab.on{color:var(--touch);border-bottom-color:var(--touch);background:rgba(245,166,35,.05)}
+
+.ctrl-tools{display:flex;align-items:center;gap:5px;padding:0 12px;flex:1}
+
+/* Toolbar separator */
+.tb-sep{width:1px;height:16px;background:var(--border3);flex-shrink:0;opacity:.6;margin:0 2px}
+
+/* Filter chips */
+.fc{
+  font-family:var(--sans);font-size:.68rem;font-weight:500;
+  padding:3px 10px;border-radius:20px;cursor:pointer;
+  border:1px solid var(--border2);
+  background:rgba(255,255,255,.03);
+  color:var(--text3);transition:all .18s;
+  white-space:nowrap;letter-spacing:-.01em;
+}
+.fc:hover{color:var(--text2);border-color:var(--border3);background:rgba(255,255,255,.06)}
+.fc.bull.on{background:rgba(0,208,132,.1);border-color:rgba(0,208,132,.3);color:var(--bull)}
+.fc.bear.on{background:rgba(240,55,78,.1);border-color:rgba(240,55,78,.3);color:var(--bear)}
+.fc.touch.on{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--touch)}
+.fc.near.on{background:rgba(157,127,245,.1);border-color:rgba(157,127,245,.3);color:var(--near)}
+
+/* Toolbar inputs */
+input[type=text],input[type=number],select{
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--border2);
+  color:var(--text);
+  font-family:var(--mono);font-size:.72rem;
+  padding:4px 9px;border-radius:var(--r);
+  outline:none;transition:all .18s;
+}
+input[type=text]:focus,input[type=number]:focus,select:focus{
+  border-color:var(--accent);
+  background:rgba(79,142,247,.06);
+  box-shadow:0 0 0 3px rgba(79,142,247,.1);
+}
+input::placeholder{color:var(--dim)}
+select option{background:#0c1526;color:var(--text)}
+
+/* Toolbar buttons */
+.btn{
+  font-family:var(--sans);font-size:.71rem;font-weight:500;
+  padding:5px 11px;border-radius:var(--r);
+  cursor:pointer;
+  border:1px solid var(--border2);
+  background:rgba(255,255,255,.04);
+  color:var(--text2);
+  transition:all .18s;
+  white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;
+  letter-spacing:-.01em;
+}
+.btn:hover{background:rgba(255,255,255,.08);color:var(--text);border-color:var(--border3);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.pri{
+  background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);
+  border-color:transparent;color:#fff;font-weight:600;
+  box-shadow:0 4px 16px rgba(79,142,247,.25);
+}
+.btn.pri:hover{box-shadow:0 6px 22px rgba(79,142,247,.4);filter:brightness(1.08)}
+.btn.tg{background:#0088cc;border-color:#007ab8;color:#fff}
+.btn.tg:hover{background:#0099dd}
+.btn.ghost{background:none;border-color:transparent;color:var(--text3)}
+.btn.ghost:hover{color:var(--text2);background:rgba(255,255,255,.04)}
+
+/* ─────────────────────── EMA PANEL ─────────────────────── */
+.ema-panel{
+  background:rgba(8,13,26,.98);
+  border-bottom:1px solid var(--border);
+  padding:14px 20px;display:none;
+}
+.ema-panel.open{display:block}
+.ep-head{font-family:var(--mono);font-size:.54rem;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:9px}
+.ep-tf-chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px}
+.ep-tf-chip{
+  font-family:var(--mono);font-size:.63rem;padding:3px 11px;border-radius:20px;
+  cursor:pointer;border:1px solid var(--border2);
+  background:rgba(255,255,255,.03);color:var(--text3);transition:all .18s;
+}
+.ep-tf-chip:hover{color:var(--text2)}
+.ep-tf-chip.on{background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.35);color:var(--accent)}
+.ep-row{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-bottom:5px;padding:8px 12px;
+  background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--r);
+  transition:border-color .18s;
+}
+.ep-row:hover{border-color:var(--border3)}
+.ep-lbl{font-family:var(--mono);font-size:.62rem;color:var(--text3);width:28px;flex-shrink:0}
+.ep-num{
+  background:rgba(0,0,0,.3);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:.72rem;
+  padding:4px 8px;border-radius:5px;width:62px;outline:none;text-align:center;
+}
+.ep-num:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,142,247,.12)}
+.ep-swatch{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.ep-tfs{display:flex;gap:5px;flex-wrap:wrap}
+.tf-ck{display:flex;align-items:center;gap:3px;font-family:var(--mono);font-size:.61rem;color:var(--text3);cursor:pointer;user-select:none;transition:color .15s}
+.tf-ck input{accent-color:var(--accent);cursor:pointer;width:11px;height:11px}
+.tf-ck.on{color:var(--text2)}
+.ep-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.78rem;padding:2px 5px;transition:all .15s;margin-left:auto;flex-shrink:0;border-radius:4px}
+.ep-rm:hover{color:var(--bear);background:rgba(240,55,78,.1)}
+.ep-footer{display:flex;gap:7px;align-items:center;margin-top:10px;flex-wrap:wrap}
+
+/* ─────────────────────── STATUS BAR ─────────────────────── */
+.statusbar{
+  display:flex;align-items:center;gap:10px;
+  padding:5px 20px;
+  border-bottom:1px solid var(--border);
+  background:rgba(5,8,16,.95);
+  font-family:var(--mono);font-size:.59rem;
+  color:var(--text3);letter-spacing:.03em;
+  position:relative;z-index:4;
+}
+.ldot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.ldot.live{background:var(--bull);box-shadow:var(--glow-bull);animation:glow-pulse 2s ease infinite}
+.ldot.demo{background:var(--touch);box-shadow:0 0 6px rgba(245,166,35,.4);animation:glow-pulse 2s ease infinite}
+@keyframes glow-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.st-sep{color:var(--border3)}
+
+/* ─────────────────────── TABLE ─────────────────────── */
+.table-wrap{
+  overflow-x:auto;
+  background:var(--bg);
+  position:relative;z-index:1;
+}
+table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:720px}
+col.c-star{width:42px}
+col.c-sym{width:168px}
+col.c-price{width:124px}
+col.c-chg{width:90px}
+col.c-sigs{width:calc(100% - 42px - 168px - 124px - 90px - 74px)}
+col.c-act{width:74px}
+
+thead th{
+  background:rgba(8,13,26,.99);
+  padding:9px 14px;
+  font-family:var(--sans);font-size:.6rem;font-weight:600;
+  color:var(--text3);text-transform:uppercase;letter-spacing:.08em;
+  text-align:left;border-bottom:1px solid var(--border2);
+  white-space:nowrap;cursor:pointer;user-select:none;
+  position:sticky;top:0;z-index:10;transition:color .15s;
+}
+thead th:hover{color:var(--text2)}
+thead th.ns{cursor:default}thead th.ns:hover{color:var(--text3)}
+thead th:nth-child(2),thead th:nth-child(3){border-right:1px solid var(--border)}
+thead th:nth-child(3),thead th:nth-child(4){text-align:left}
+
+tbody tr{
+  border-bottom:1px solid rgba(15,30,50,.9);
+  transition:background .1s;
+}
+tbody tr:nth-child(odd) td{background:rgba(8,13,26,.6)}
+tbody tr:nth-child(even) td{background:rgba(6,10,20,.4)}
+tbody tr:hover td{background:rgba(79,142,247,.04)!important}
+tbody tr.fav td:first-child{border-left:2px solid var(--accent)}
+
+td{
+  padding:10px 14px;vertical-align:middle;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+td:nth-child(2),td:nth-child(3){border-right:1px solid rgba(15,30,50,.7)}
+td:nth-child(3),td:nth-child(4){text-align:left}
+td.td-sigs{white-space:normal;overflow:visible;vertical-align:middle}
+
+/* Symbol cell */
+.sym-cell{display:flex;align-items:center;gap:10px}
+.sym-ico{
+  width:32px;height:32px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:.5rem;font-weight:700;
+  letter-spacing:-.02em;
+  border:1px solid rgba(255,255,255,.06);
+  position:relative;overflow:hidden;
+}
+.sym-ico::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.1) 0%,transparent 50%)}
+.sym-name{font-family:var(--sans);font-weight:600;font-size:.82rem;letter-spacing:-.02em}
+.sym-name:hover{color:var(--accent)}
+
+/* Mono price */
+.mono{font-family:var(--mono);font-weight:500;font-size:.79rem}
+
+/* Change pill */
+.chg-pill{
+  display:inline-flex;align-items:center;
+  font-family:var(--mono);font-size:.69rem;font-weight:600;
+  padding:3px 8px;border-radius:5px;min-width:58px;
+  letter-spacing:-.01em;
+}
+.chg-pill.up{background:rgba(0,208,132,.09);color:var(--bull);border:1px solid rgba(0,208,132,.18)}
+.chg-pill.dn{background:rgba(240,55,78,.09);color:var(--bear);border:1px solid rgba(240,55,78,.18)}
+
+/* ─────────────────────── SIGNAL CHIPS ─────────────────────── */
+.sigs{display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:2px 0}
+
+.sig{
+  display:inline-flex;align-items:stretch;
+  border-radius:5px;
+  font-family:var(--mono);font-size:.66rem;
+  border:1px solid transparent;
+  white-space:nowrap;overflow:hidden;line-height:1;
+  transition:transform .15s,box-shadow .15s,filter .15s;
+  cursor:default;
+}
+.sig:hover{transform:translateY(-1px);filter:brightness(1.1)}
+
+.sig.bull{border-color:rgba(0,208,132,.18);box-shadow:0 1px 6px rgba(0,208,132,.07)}
+.sig.bear{border-color:rgba(240,55,78,.18);box-shadow:0 1px 6px rgba(240,55,78,.07)}
+.sig.touch{border-color:rgba(245,166,35,.22);box-shadow:0 1px 6px rgba(245,166,35,.07)}
+.sig.near{border-color:rgba(157,127,245,.18);box-shadow:0 1px 6px rgba(157,127,245,.07)}
+
+.sig-tf{
+  padding:4px 6px;
+  font-size:.56rem;font-weight:700;letter-spacing:.05em;
+  display:flex;align-items:center;
+}
+.sig.bull .sig-tf{background:rgba(0,208,132,.14);color:var(--bull)}
+.sig.bear .sig-tf{background:rgba(240,55,78,.14);color:var(--bear)}
+.sig.touch .sig-tf{background:rgba(245,166,35,.14);color:var(--touch)}
+.sig.near .sig-tf{background:rgba(157,127,245,.14);color:var(--near)}
+
+.sig-body{display:flex;align-items:center;gap:4px;padding:4px 7px;background:rgba(255,255,255,.025)}
+.sig-ema{font-size:.61rem;font-weight:500;color:var(--text3)}
+.sig-dist{font-size:.66rem;font-weight:700;letter-spacing:-.02em}
+.sig.bull .sig-dist{color:var(--bull)}
+.sig.bear .sig-dist{color:var(--bear)}
+.sig.touch .sig-dist{color:var(--touch)}
+.sig.near .sig-dist{color:var(--near)}
+
+.sig-more{
+  font-family:var(--mono);font-size:.56rem;color:var(--text3);
+  padding:3px 7px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border2);border-radius:4px;white-space:nowrap;
+}
+
+/* Action buttons */
+.act-cell{display:flex;gap:5px;justify-content:center}
+.act{
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  color:var(--text3);width:28px;height:28px;border-radius:7px;
+  cursor:pointer;font-size:.72rem;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s;
+}
+.act:hover{border-color:var(--border3);color:var(--text);background:rgba(255,255,255,.07);transform:translateY(-1px)}
+.act.fav-on{color:var(--accent);border-color:rgba(79,142,247,.3);background:rgba(79,142,247,.08)}
+.act.alert-on{color:var(--touch);border-color:rgba(245,166,35,.3);background:rgba(245,166,35,.07)}
+.act.chart{color:var(--accent);border-color:rgba(79,142,247,.18)}
+.act.chart:hover{border-color:var(--accent);background:rgba(79,142,247,.1)}
+
+.no-data{text-align:center;padding:60px 20px;color:var(--text3);font-family:var(--mono);font-size:.7rem;letter-spacing:.03em;line-height:2}
+
+/* ─────────────────────── PANELS ─────────────────────── */
+.panels{margin-top:0}
+.panel{background:rgba(8,13,26,.98);border-top:1px solid var(--border);overflow:hidden}
+.ph{
+  display:flex;align-items:center;gap:9px;
+  padding:11px 20px;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;user-select:none;
+  transition:background .15s;
+}
+.ph:hover{background:rgba(255,255,255,.02)}
+.ph-title{font-family:var(--sans);font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;flex:1}
+.ph-badge{
+  background:rgba(79,142,247,.12);color:var(--accent);
+  font-family:var(--mono);font-size:.54rem;
+  padding:2px 8px;border-radius:10px;min-width:22px;text-align:center;
+  border:1px solid rgba(79,142,247,.2);
+}
+.ph-arr{color:var(--text3);font-size:.55rem;transition:transform .2s}
+.panel.col .ph-arr{transform:rotate(-90deg)}
+.pb{padding:0 20px 12px}
+.panel.col .pb{display:none}
+.empty{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.62rem;padding:26px 0;letter-spacing:.04em}
+
+/* ─────────────────────── ALERT HISTORY ─────────────────────── */
+.ah-filters{display:flex;gap:5px;margin-bottom:10px;padding-top:11px;flex-wrap:wrap;align-items:center}
+.ahf{
+  font-family:var(--sans);font-size:.63rem;font-weight:500;
+  padding:3px 10px;border-radius:12px;cursor:pointer;
+  border:1px solid var(--border);background:none;color:var(--text3);transition:all .18s;
+}
+.ahf:hover{color:var(--text2)}
+.ahf.on{background:rgba(255,255,255,.06);color:var(--text2);border-color:var(--border3)}
+.ahf.bull.on{background:rgba(0,208,132,.1);border-color:rgba(0,208,132,.3);color:var(--bull)}
+.ahf.bear.on{background:rgba(240,55,78,.1);border-color:rgba(240,55,78,.3);color:var(--bear)}
+.ahf.touch.on{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--touch)}
+.ahf.near.on{background:rgba(157,127,245,.1);border-color:rgba(157,127,245,.3);color:var(--near)}
+
+.ah-list{overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+
+.ah-item{
+  display:grid;grid-template-columns:3px 88px 1fr auto;
+  align-items:center;gap:0;
+  border-bottom:1px solid rgba(15,30,50,.6);
+  padding:9px 0;
+  transition:background .15s;
+}
+.ah-item:hover{background:rgba(79,142,247,.03)}
+.ah-item:last-child{border-bottom:none}
+
+.ah-bar{width:3px;height:32px;border-radius:0 2px 2px 0;flex-shrink:0;margin-right:12px}
+.ah-bar.bull{background:linear-gradient(180deg,var(--bull),rgba(0,208,132,.2))}
+.ah-bar.bear{background:linear-gradient(180deg,var(--bear),rgba(240,55,78,.2))}
+.ah-bar.touch{background:linear-gradient(180deg,var(--touch),rgba(245,166,35,.2))}
+.ah-bar.near{background:linear-gradient(180deg,var(--near),rgba(157,127,245,.2))}
+.ah-sym{font-family:var(--sans);font-weight:700;font-size:.77rem;padding:0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah-meta{font-family:var(--mono);font-size:.61rem;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah-type{font-family:var(--mono);font-size:.57rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:3px;display:inline-block}
+.ah-type.bull{color:var(--bull);background:rgba(0,208,132,.1)}
+.ah-type.bear{color:var(--bear);background:rgba(240,55,78,.1)}
+.ah-type.touch{color:var(--touch);background:rgba(245,166,35,.1)}
+.ah-type.near{color:var(--near);background:rgba(157,127,245,.1)}
+.ah-time{font-family:var(--mono);font-size:.57rem;color:var(--dim);white-space:nowrap;padding:0 4px 0 12px;text-align:right}
+
+/* ─────────────────────── OVERLAYS / MODALS ─────────────────────── */
+.overlay{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(2,5,12,.8);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+  opacity:0;pointer-events:none;transition:opacity .22s;
+}
+.overlay.open{opacity:1;pointer-events:all}
+
+.modal{
+  background:rgba(8,13,26,.98);
+  border:1px solid var(--border2);border-radius:var(--r2);
+  width:100%;max-width:660px;max-height:88vh;
+  overflow:hidden;display:flex;flex-direction:column;
+  transform:translateY(18px) scale(.97);
+  transition:transform .28s cubic-bezier(.34,1.5,.64,1);
+  box-shadow:0 50px 120px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04) inset,
+             0 0 60px rgba(79,142,247,.05);
+}
+.overlay.open .modal{transform:translateY(0) scale(1)}
+
+.mh{
+  display:flex;align-items:center;gap:12px;
+  padding:15px 20px;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  background:rgba(255,255,255,.015);
+}
+.mh-sym{font-family:var(--sans);font-weight:700;font-size:.92rem;letter-spacing:-.025em}
+.mh-sub{font-family:var(--mono);font-size:.57rem;color:var(--text3);margin-top:3px}
+.mh-r{margin-left:auto;text-align:right;flex-shrink:0}
+.mh-px{font-family:var(--mono);font-weight:600;font-size:.92rem}
+.mh-chg{font-family:var(--mono);font-size:.65rem;margin-top:2px}
+
+.m-close{
+  background:rgba(255,255,255,.05);border:1px solid var(--border2);
+  color:var(--text3);width:30px;height:30px;border-radius:7px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .18s;font-size:.74rem;
+}
+.m-close:hover{background:rgba(240,55,78,.1);border-color:rgba(240,55,78,.25);color:var(--bear)}
+.mb{overflow-y:auto;padding:18px 20px}
+
+/* Share URL box */
+.share-url{
+  background:rgba(0,0,0,.3);border:1px solid var(--border2);border-radius:var(--r);
+  padding:11px 14px;font-family:var(--mono);font-size:.63rem;
+  color:var(--text3);word-break:break-all;margin-bottom:14px;line-height:1.7;
+}
+
+/* Feedback types */
+.fb-type{
+  font-family:var(--sans);font-size:.7rem;font-weight:500;
+  padding:5px 14px;border-radius:20px;cursor:pointer;
+  border:1px solid var(--border2);background:rgba(255,255,255,.04);
+  color:var(--text3);transition:all .18s;
+}
+.fb-type:hover{color:var(--text2);transform:translateY(-1px)}
+.fb-type.on{background:rgba(79,142,247,.12);border-color:rgba(79,142,247,.35);color:var(--accent)}
+
+/* Toggle */
+.tog{position:relative;width:30px;height:16px;flex-shrink:0;cursor:pointer;display:block}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.tog-track{position:absolute;inset:0;background:var(--dim);border-radius:8px;transition:background .18s}
+.tog-track::after{content:'';position:absolute;left:3px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--text3);transition:transform .18s,background .18s}
+.tog input:checked+.tog-track{background:var(--accent)}
+.tog input:checked+.tog-track::after{transform:translateX(14px);background:#fff}
+
+/* ─────────────────────── TOASTS ─────────────────────── */
+#toasts{
+  position:fixed;top:62px;right:16px;z-index:200;
+  display:flex;flex-direction:column;gap:6px;pointer-events:none;
+}
+.toast{
+  background:rgba(8,13,26,.97);
+  border:1px solid var(--border2);border-radius:var(--r2);
+  padding:9px 14px;
+  font-family:var(--sans);font-size:.71rem;font-weight:500;
+  color:var(--text);
+  display:flex;align-items:center;gap:9px;
+  box-shadow:0 16px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset;
+  animation:toast-in .22s cubic-bezier(.34,1.5,.64,1);
+  max-width:300px;
+}
+@keyframes toast-in{from{opacity:0;transform:translateX(12px) scale(.95)}to{opacity:1;transform:translateX(0) scale(1)}}
+
+/* ─────────────────────── MOBILE ─────────────────────── */
+@media(max-width:480px){
+  .nav{padding:0 12px;height:48px}
+  .nav .nbtn:not(#btnKey):not(#btnSnd){display:none}
+  .logo{font-size:.85rem;gap:8px}
+  .logo-gem{width:24px;height:24px}
+  .v-badge,.demo-tag{font-size:.5rem}
+
+  .ctrl-bar{flex-wrap:wrap;min-height:auto}
+  .mkt-tabs{width:100%;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+  .mkt-tabs::-webkit-scrollbar{display:none}
+  .mkt{height:35px;padding:0 11px;font-size:.68rem}
+  .ctrl-tools{width:100%;padding:6px 10px;gap:4px;flex-wrap:wrap}
+  #srch{width:88px}
+
+  table{min-width:0;width:100%}
+  col.c-price,td:nth-child(3),th:nth-child(3){display:none}
+  col.c-chg{width:62px}col.c-star{width:32px}col.c-sym{width:110px}col.c-act{width:56px}
+  td,thead th{padding:7px 8px}
+  .sig-dist{display:none}
+  .sig-body{padding:3px 5px;gap:2px}
+  .sym-ico{width:26px;height:26px}
+  .sym-name{font-size:.75rem}
+  .act{width:26px;height:26px;font-size:.67rem}
+
+  .statusbar{font-size:.56rem;padding:4px 12px}
+  .ph{padding:10px 14px}.pb{padding:0 14px 10px}
+  .modal{border-radius:var(--r2) var(--r2) 0 0;max-height:82vh}
+  .overlay{align-items:flex-end;padding:0}
+}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+
+<nav class="nav">
+  <div class="logo">
+    <div class="logo-gem">
+      <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 1L12 5L7 13L2 5Z" opacity=".9"/>
+        <path d="M2 5L7 5L7 13Z" opacity=".5"/>
+        <path d="M7 5L12 5L7 13Z" opacity=".7"/>
+        <path d="M2 5L7 1L7 5Z" opacity=".6"/>
+      </svg>
+    </div>
+    EMAScope<span class="v-badge">v4</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="demo-tag" id="demoPill">DEMO</span>
+  <button class="nbtn accent" id="btnKey" onclick="openApiKey()">&#128273; API Key</button>
+  <button class="nbtn" id="btnSnd" onclick="toggleSound()">&#128276;</button>
+  <button class="nbtn" onclick="openShare()">&#8599; Share</button>
+  <button class="nbtn purple" onclick="openFeedback()">&#128172; Feedback</button>
+</nav>
+
+<div class="promo" id="promo">
+  <div class="promo-txt"><strong>EMAScope Pro</strong> &mdash; real-time EMA alerts delivered to Telegram for 40+ instruments across all timeframes.</div>
+  <div class="promo-actions">
+    <input type="email" id="emailIn" placeholder="your@email.com">
+    <button class="btn pri" onclick="doEmail()">Notify Me</button>
+    <button class="btn tg" onclick="doTg()">&#x2708; Telegram</button>
+  </div>
+  <button class="btn ghost" onclick="dismissPromo()">&#x2715;</button>
+</div>
+
+<div class="ctrl-bar">
+  <div class="mkt-tabs" id="mktBar"></div>
+  <div class="ctrl-tools">
+    <input type="text" id="srch" placeholder="Search…" style="width:120px" oninput="render()">
+    <div class="tb-sep"></div>
+    <button class="fc bull" id="fb" onclick="toggleF('bull')">&#9650; Bull</button>
+    <button class="fc bear" id="fe" onclick="toggleF('bear')">&#9660; Bear</button>
+    <button class="fc touch" id="ft" onclick="toggleF('touch')">&#9679; Touch</button>
+    <button class="fc near" id="fn" onclick="toggleF('near')">&#9675; Near</button>
+    <div class="spacer"></div>
+    <select id="tfSel" onchange="render()">
+      <option value="all">All TFs</option>
+      <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option><option value="30m">30m</option>
+      <option value="1h" selected>1h</option><option value="3h">3h</option><option value="4h">4h</option>
+      <option value="1d">1D</option><option value="1w">1W</option><option value="1M">1M</option>
+    </select>
+    <button class="btn" onclick="openEmaPanel()">&#9881; EMA</button>
+    <button class="btn pri" onclick="doRefresh()">&#8635; Refresh</button>
+  </div>
+</div>
+
+<div class="ema-panel" id="emaPanel">
+  <div style="margin-bottom:10px">
+    <div class="ep-head">Active Timeframes</div>
+    <div class="ep-tf-chips" id="epTfChips"></div>
+  </div>
+  <div class="ep-head" style="margin-top:4px">EMA Configuration &mdash; period &middot; timeframes &middot; color</div>
+  <div id="epRows"></div>
+  <div class="ep-footer">
+    <input type="number" id="newP" class="ep-num" placeholder="Period" min="1" max="500" style="width:84px">
+    <button class="btn pri" onclick="addEma()">+ Add</button>
+    <button class="btn" onclick="applyEmas()">&#10003; Apply &amp; Close</button>
+    <button class="btn ghost" onclick="resetEmas()" style="margin-left:auto;color:var(--bear);border-color:rgba(240,55,78,.2)" title="Reset to default EMA 9/21/50/200">&#8635; Reset</button>
+  </div>
+</div>
+
+<div class="statusbar">
+  <div class="ldot" id="ldot"></div>
+  <span id="stMode">&mdash;</span>
+  <span class="st-sep">&middot;</span><span id="stSyms">&mdash;</span> symbols
+  <span class="st-sep">&middot;</span><span id="stSigs">&mdash;</span> signals
+  <span class="st-sep">&middot;</span><span id="stTime">&mdash;</span>
+  <span class="st-sep" id="credSep" style="display:none">&middot;</span>
+  <span id="stCreds" style="display:none;color:var(--text3)"></span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <colgroup>
+      <col class="c-star"><col class="c-sym"><col class="c-price">
+      <col class="c-chg"><col class="c-sigs"><col class="c-act">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="ns"></th>
+        <th onclick="sortBy('sym')">Symbol</th>
+        <th onclick="sortBy('price')">Price</th>
+        <th onclick="sortBy('chg')">24h %</th>
+        <th class="ns">Signals <small style="opacity:.35;font-weight:400;font-size:.54rem">TF · EMA · Dist%</small></th>
+        <th class="ns" style="text-align:center">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="panels">
+  <div class="panel" id="pAlerts">
+    <div class="ph" onclick="togglePanel('pAlerts')">
+      <span class="ph-title">Alert History</span>
+      <span class="ph-badge" id="aBadge">0</span>
+      <span class="ph-arr">&#9662;</span>
+    </div>
+    <div class="pb">
+      <div class="ah-filters">
+        <button class="ahf on" data-f="all" onclick="setAhF('all')">All</button>
+        <button class="ahf bull" data-f="bull" onclick="setAhF('bull')">Bull</button>
+        <button class="ahf bear" data-f="bear" onclick="setAhF('bear')">Bear</button>
+        <button class="ahf touch" data-f="touch" onclick="setAhF('touch')">Touch</button>
+        <button class="ahf near" data-f="near" onclick="setAhF('near')">Near</button>
+        <button class="ahf" style="margin-left:auto" onclick="clearLog()">Clear</button>
+      </div>
+      <div class="ah-list" id="ahList"><div class="empty">No alerts yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- API KEY MODAL -->
+<div class="overlay" id="apiOv">
+  <div class="modal" style="max-width:460px">
+    <div class="mh">
+      <div><div class="mh-sym">&#128273; Live Data — Finnhub</div><div class="mh-sub" id="apiStatus">Paste your free Finnhub key to go live</div></div>
+      <button class="m-close" onclick="closeOv('apiOv')">&#x2715;</button>
+    </div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:14px;padding-top:16px">
+      <div style="background:rgba(0,208,132,.05);border:1px solid rgba(0,208,132,.12);border-radius:var(--r);padding:11px 14px;font-family:var(--mono);font-size:.63rem;color:var(--text2);line-height:1.85">
+        <div style="color:var(--bull);font-weight:600;margin-bottom:5px">✓ 100% free — no credit card, no paid plan</div>
+        <div>Get a free key at <a href="https://finnhub.io" target="_blank" style="color:var(--accent);text-decoration:none">finnhub.io</a> — sign up takes 30 seconds.</div>
+        <div style="margin-top:4px;color:var(--text3)">Covers: US Stocks · Crypto · Indices · India NSE · Forex</div>
+        <div style="color:var(--text3)">Free limit: 60 calls/min — enough for all markets in EMAScope</div>
+      </div>
+      <input id="apiKeyIn" type="password" placeholder="Paste Finnhub API key here…" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:.76rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);padding:10px 13px;border-radius:var(--r);outline:none;transition:border-color .18s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn pri" onclick="saveApiKey()">&#10003; Connect</button>
+        <button class="btn" onclick="testApiKey()">&#9654; Test Key</button>
+        <button class="btn" style="margin-left:auto;color:var(--bear);border-color:rgba(240,55,78,.2)" onclick="clearApiKey()">&#x2715; Disconnect</button>
+      </div>
+      <div id="apiMsg" style="font-family:var(--mono);font-size:.63rem;min-height:16px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="overlay" id="shareOv">
+  <div class="modal" style="max-width:420px">
+    <div class="mh">
+      <div><div class="mh-sym">&#8599; Share Settings</div></div>
+      <button class="m-close" onclick="closeOv('shareOv')">&#x2715;</button>
+    </div>
+    <div class="mb">
+      <div style="font-family:var(--mono);font-size:.65rem;color:var(--text3);margin-bottom:10px">Shareable URL with your market, EMA config, and watchlist:</div>
+      <div class="share-url" id="shareUrl">&mdash;</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn pri" onclick="copyShare()">&#x2398; Copy URL</button>
+        <button class="btn" onclick="closeOv('shareOv')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDBACK MODAL -->
+<div class="overlay" id="feedbackOv">
+  <div class="modal" style="max-width:460px">
+    <div class="mh">
+      <div><div class="mh-sym">&#128172; Send Feedback</div><div class="mh-sub">Help us improve EMAScope</div></div>
+      <button class="m-close" onclick="closeOv('feedbackOv')">&#x2715;</button>
+    </div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:14px;padding-top:16px">
+      <div style="display:flex;gap:8px">
+        <button class="fb-type on" id="fbt-bug" onclick="setFbType('bug')">🐛 Bug</button>
+        <button class="fb-type" id="fbt-idea" onclick="setFbType('idea')">💡 Idea</button>
+        <button class="fb-type" id="fbt-other" onclick="setFbType('other')">💬 Other</button>
+      </div>
+      <textarea id="fbText" placeholder="Describe the issue or idea…" style="width:100%;box-sizing:border-box;min-height:100px;resize:vertical;font-family:var(--mono);font-size:.73rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:var(--r);outline:none;line-height:1.6" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
+      <input id="fbEmail" type="email" placeholder="Your email (optional — for follow-up)" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:.73rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);padding:9px 12px;border-radius:var(--r);outline:none" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn pri" onclick="submitFeedback()">&#10003; Send Feedback</button>
+        <button class="btn" onclick="closeOv('feedbackOv')">Cancel</button>
+        <span id="fbMsg" style="font-family:var(--mono);font-size:.63rem;margin-left:auto"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ALERT MODAL -->
+<div class="overlay" id="alertOv">
+  <div class="modal" style="max-width:500px">
+    <div class="mh">
+      <div><div class="mh-sym">🔔 Alert Rules — <span id="alOvSym"></span></div><div class="mh-sub">Set specific TF · EMA · signal conditions</div></div>
+      <button class="m-close" onclick="closeOv('alertOv')">&#x2715;</button>
+    </div>
+    <div class="mb" style="padding-top:14px">
+      <div id="alRuleList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+      <div style="background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-family:var(--mono);font-size:.57rem;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Add New Rule</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:var(--mono);font-size:.56rem;color:var(--text3)">Timeframe</label>
+            <select id="alTf" style="width:80px">
+              <option>1m</option><option>5m</option><option>15m</option><option>30m</option>
+              <option value="1h" selected>1h</option><option>3h</option><option>4h</option>
+              <option value="1d">1d</option><option value="1w">1w</option><option value="1M">1M</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:var(--mono);font-size:.56rem;color:var(--text3)">EMA Period</label>
+            <input id="alPeriod" type="number" min="1" max="500" value="200" style="width:80px;text-align:center">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:var(--mono);font-size:.56rem;color:var(--text3)">Signal</label>
+            <select id="alType" style="width:90px">
+              <option value="touch">Touch</option>
+              <option value="near">Near</option>
+              <option value="bull">Bull</option>
+              <option value="bear">Bear</option>
+              <option value="any">Any</option>
+            </select>
+          </div>
+          <button class="btn pri" style="align-self:flex-end" onclick="addAlertRule()">+ Add Rule</button>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn" onclick="closeOv('alertOv')">Done</button>
+        <button class="btn" style="color:var(--bear);border-color:rgba(240,55,78,.25);margin-left:auto" onclick="clearAlertRules()">Clear All Rules</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STARTUP CONFIG GUARD ──────────────────────────────────────────────
+// Runs before anything loads — ensures clean state on every page open
+(function(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('ema_cfg')||'null');
+    if(cfg){
+      const periods=cfg.map(e=>e.period).sort((a,b)=>a-b).join(',');
+      // Only allow 9,21,50,200 — reset anything else
+      if(periods!=='9,21,50,200'){
+        localStorage.removeItem('ema_cfg');
+        console.log('[EMAScope] Reset bad EMA config:',periods,'→ using defaults 9,21,50,200');
+      }
+    }
+  }catch(e){localStorage.removeItem('ema_cfg');}
+})();
+const ECOLS=['#1e90ff','#ffb700','#00d084','#ff4560','#9b72ff','#ff9f43','#00cece','#e056fd'];
+const ALL_TFS=['1m','5m','15m','30m','1h','3h','4h','1d','1w','1M'];
+const TF_DESC={'1m':'1m','5m':'5m','15m':'15m','30m':'30m','1h':'1h','3h':'3h','4h':'4h','1d':'1D','1w':'1W','1M':'1M'};
+const MARKETS={
+  Indices:['NIFTY50','BANKNIFTY','NIFTYMID','SENSEX','SPX','NDX','DJI','DAX','FTSE','NIKKEI','HSI','ASX200','CAC40','VIX'],
+  US:['AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','AMD','NFLX','ORCL','PLTR','CRM','SHOP','SQ','COIN'],
+  India:['RELIANCE','TCS','HDFCBANK','INFY','ICICIBANK','HINDUNILVR','SBIN','BHARTIARTL','ITC','KOTAKBANK','LT','HCLTECH','AXISBANK','WIPRO','MARUTI','TATAMOTORS','TITAN','SUNPHARMA','ULTRACEMCO','BAJFINANCE'],
+  Forex:['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD','NZD/USD','USD/CHF','EUR/GBP','EUR/JPY','GBP/JPY'],
+  Crypto:['BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOGE','DOT','LINK','MATIC','LTC','UNI','ATOM','NEAR','ARB','OP','INJ','SUI','APT'],
+};
+const SYM_CCY={
+  // Indices — each native currency
+  NIFTY50:'₹',BANKNIFTY:'₹',NIFTYMID:'₹',SENSEX:'₹',
+  SPX:'$',NDX:'$',DJI:'$',VIX:'$',
+  DAX:'€',CAC40:'€',
+  FTSE:'£',
+  NIKKEI:'¥',
+  HSI:'HK$',
+  ASX200:'A$',
+  // US stocks
+  AAPL:'$',MSFT:'$',NVDA:'$',GOOGL:'$',AMZN:'$',META:'$',TSLA:'$',AMD:'$',NFLX:'$',ORCL:'$',PLTR:'$',CRM:'$',SHOP:'$',SQ:'$',COIN:'$',
+  // India stocks
+  RELIANCE:'₹',TCS:'₹',HDFCBANK:'₹',INFY:'₹',ICICIBANK:'₹',HINDUNILVR:'₹',SBIN:'₹',BHARTIARTL:'₹',ITC:'₹',KOTAKBANK:'₹',LT:'₹',HCLTECH:'₹',AXISBANK:'₹',WIPRO:'₹',MARUTI:'₹',TATAMOTORS:'₹',TITAN:'₹',SUNPHARMA:'₹',ULTRACEMCO:'₹',BAJFINANCE:'₹',
+  // Crypto
+  BTC:'$',ETH:'$',SOL:'$',BNB:'$',XRP:'$',ADA:'$',AVAX:'$',DOGE:'$',DOT:'$',LINK:'$',MATIC:'$',LTC:'$',UNI:'$',ATOM:'$',NEAR:'$',ARB:'$',OP:'$',INJ:'$',SUI:'$',APT:'$',
+};
+const BASE_PX={
+  BTC:67840,ETH:3521,SOL:178,BNB:582,XRP:.62,ADA:.48,AVAX:38,DOGE:.167,DOT:8.9,LINK:15,MATIC:.88,LTC:89,UNI:9.7,ATOM:11,NEAR:6.8,ARB:1.23,OP:2.87,INJ:28,SUI:1.98,APT:9.1,
+  AAPL:189,MSFT:415,NVDA:875,GOOGL:172,AMZN:196,META:505,TSLA:248,AMD:167,NFLX:628,ORCL:124,PLTR:24,CRM:290,SHOP:74,SQ:72,COIN:195,
+  RELIANCE:2945,TCS:3876,HDFCBANK:1642,INFY:1789,ICICIBANK:1245,HINDUNILVR:2380,SBIN:815,BHARTIARTL:1590,ITC:468,KOTAKBANK:1923,LT:3560,HCLTECH:1724,AXISBANK:1178,WIPRO:520,MARUTI:12450,TATAMOTORS:985,TITAN:3890,SUNPHARMA:1623,ULTRACEMCO:11200,BAJFINANCE:7845,
+  'EUR/USD':1.085,'GBP/USD':1.268,'USD/JPY':149.2,'AUD/USD':.654,'USD/CAD':1.36,'NZD/USD':.609,'USD/CHF':.896,'EUR/GBP':.856,'EUR/JPY':161.9,'GBP/JPY':189.4,
+  NIFTY50:22350,BANKNIFTY:48200,NIFTYMID:44800,SENSEX:73700,
+  SPX:5200,NDX:18200,DJI:38900,VIX:14.2,DAX:17800,FTSE:7620,NIKKEI:38400,HSI:17100,ASX200:7580,CAC40:8050,
+};
+const S={
+  mkt:'Indices',demo:true,sound:true,syms:[],
+  favs:new Set(JSON.parse(localStorage.getItem('ema_favs')||'[]')),
+  alertSyms:new Set(JSON.parse(localStorage.getItem('ema_as')||'[]')),
+  alertRules:JSON.parse(localStorage.getItem('ema_rules')||'{}'), // {sym:[{tf,period,type}]}
+  log:JSON.parse(localStorage.getItem('ema_log')||'[]').slice(0,200),
+  ahf:'all',fc:new Set(),sort:'sym',sortDir:1,csym:null,ctf:'1h',showFavs:false,
+  fhKey:localStorage.getItem('ema_fhkey')||'',
+  activeTfs:new Set(JSON.parse(localStorage.getItem('ema_tfs')||'null')||ALL_TFS),
+  emas:JSON.parse(localStorage.getItem('ema_cfg')||'null')||[
+    {period:9,tfs:['1d','1w'],col:'#1e90ff'},
+    {period:21,tfs:['1d','1w'],col:'#ffb700'},
+    {period:50,tfs:['1d','1w'],col:'#00d084'},
+    {period:200,tfs:['1d','1w'],col:'#ff4560'},
+  ],
+};
+function renderMktTabs(){
+  const favBtn=`<button class="mkt fav-tab${S.showFavs?' on':''}" onclick="toggleFavTab()">&#9733; Favs</button>`;
+  const mktBtns=Object.keys(MARKETS).map(m=>`<button class="mkt${m===S.mkt&&!S.showFavs?' on':''}" onclick="setMkt('${m}')">${m}</button>`).join('');
+  document.getElementById('mktBar').innerHTML=favBtn+mktBtns;
+}
+function toggleFavTab(){
+  S.showFavs=!S.showFavs;
+  if(S.showFavs){
+    // Build syms from ALL markets so cross-market favs show up
+    S.syms=Object.values(MARKETS).flat().map(sym=>{
+      const base=BASE_PX[sym]||100;
+      const price=base*(1+(Math.random()-.5)*.008);
+      const chg=(Math.random()-.47)*6;
+      const sigs=[];
+      S.emas.forEach(ema=>{
+        ema.tfs.forEach(tf=>{
+          if(!S.activeTfs.has(tf))return;
+          const c0=sym.charCodeAt(0)||0,c1=sym.charCodeAt(1)||0,c2=sym.charCodeAt(2)||0;
+          const seed=c0*17+c1*7+c2*3+ema.period*13+tf.length*31;
+          const rng=Math.sin(seed*1.618+Date.now()*.000008)*.5+.5;
+          const dist=parseFloat(((rng*6)-3).toFixed(2));
+          const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
+          if(rng>.28)sigs.push({tf,period:ema.period,dist,type,col:ema.col});
+        });
+      });
+      return{sym,price,chg,sigs};
+    }).filter(s=>S.favs.has(s.sym));
+    S.fc.add('fav');
+  } else {
+    S.fc.delete('fav');
+    buildData();
+  }
+  renderMktTabs();render();
+}
+function setMkt(m){S.mkt=m;S.showFavs=false;S.fc.delete('fav');renderMktTabs();buildData();render();}
+function buildData(){
+  S.syms=MARKETS[S.mkt].map(sym=>{
+    const base=BASE_PX[sym]||100;
+    const price=base*(1+(Math.random()-.5)*.008);
+    const chg=(Math.random()-.47)*6;
+    const sigs=[];
+    S.emas.forEach(ema=>{
+      ema.tfs.forEach(tf=>{
+        if(!S.activeTfs.has(tf))return;
+        const c0=sym.charCodeAt(0)||0,c1=sym.charCodeAt(1)||0,c2=sym.charCodeAt(2)||0;
+        const seed=c0*17+c1*7+c2*3+ema.period*13+tf.length*31;
+        const rng=Math.sin(seed*1.618+Date.now()*.000008)*.5+.5;
+        const dist=parseFloat(((rng*6)-3).toFixed(2));
+        const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
+        sigs.push({tf,period:ema.period,dist,type,col:ema.col}); // show all in demo
+      });
+    });
+    return{sym,price,chg,sigs};
+  });
+}
+function fmtPx(p){
+  if(p<.001)return p.toFixed(6);if(p<.1)return p.toFixed(5);if(p<1)return p.toFixed(4);
+  if(p<10)return p.toFixed(3);if(p<1000)return p.toFixed(2);
+  return p.toLocaleString('en-US',{maximumFractionDigits:0});
+}
+function render(){
+  const srch=document.getElementById('srch').value.toLowerCase();
+  const tf=document.getElementById('tfSel').value;
+  let data=S.syms.filter(s=>{
+    if(srch&&!s.sym.toLowerCase().includes(srch))return false;
+    if(S.fc.has('fav')&&!S.favs.has(s.sym))return false;
+    const sigs=tf==='all'?s.sigs:s.sigs.filter(g=>g.tf===tf);
+    const types=['bull','bear','touch','near'].filter(t=>S.fc.has(t));
+    if(types.length&&!types.some(t=>sigs.some(g=>g.type===t)))return false;
+    return true;
+  });
+  data.sort((a,b)=>{
+    const av=S.sort==='sym'?a.sym:S.sort==='price'?a.price:a.chg;
+    const bv=S.sort==='sym'?b.sym:S.sort==='price'?b.price:b.chg;
+    return av<bv?-S.sortDir:av>bv?S.sortDir:0;
+  });
+  const totalSigs=data.reduce((n,s)=>n+(tf==='all'?s.sigs:s.sigs.filter(g=>g.tf===tf)).length,0);
+  document.getElementById('stSyms').textContent=data.length;
+  document.getElementById('stSigs').textContent=totalSigs;
+  document.getElementById('stTime').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const tbody=document.getElementById('tbody');
+  if(!data.length){
+    const msg=S.showFavs&&S.favs.size===0
+      ?'No starred symbols yet — click ★ on any row to add to Favs'
+      :'No symbols match current filters.';
+    tbody.innerHTML=`<tr><td colspan="6" class="no-data">${msg}</td></tr>`;return;
+  }
+  tbody.innerHTML=data.map(s=>{
+    const vis=tf==='all'?s.sigs:s.sigs.filter(g=>g.tf===tf);
+    const isFav=S.favs.has(s.sym),isAlert=S.alertSyms.has(s.sym);
+    const ccy=SYM_CCY[s.sym]||'$';
+    const ico=s.sym.replace('/','').slice(0,3).toUpperCase();
+    const hue=(s.sym.charCodeAt(0)*37+(s.sym.charCodeAt(1)||0)*17)%360;
+    const icoBg=`hsla(${hue},50%,22%,1)`;const icoFg=`hsla(${hue},75%,68%,1)`;
+    const TF_ORDER=['1m','5m','15m','30m','1h','3h','4h','1d','1w','1M'];
+    const sorted=vis.slice().sort((a,b)=>{
+      const ti=TF_ORDER.indexOf(a.tf)-TF_ORDER.indexOf(b.tf);
+      return ti!==0?ti:a.period-b.period;
+    });
+    const chips=sorted.map(g=>{
+      const ds=(g.dist>=0?'+':'')+g.dist.toFixed(2)+'%';
+      return `<span class="sig ${g.type}"><span class="sig-tf">${g.tf}</span><span class="sig-body"><span class="sig-ema">E${g.period}</span><span class="sig-dist">${ds}</span></span></span>`;
+    }).join('');
+    const empty=!chips?'<span style="color:var(--dim);font-family:var(--mono);font-size:.63rem">&mdash;</span>':'';
+    const chgSign=s.chg>=0?'+':'';
+    const chgCol=s.chg>0?'var(--bull)':s.chg<0?'var(--bear)':'var(--text3)';
+    return `<tr class="${isFav?'fav':''}">
+      <td style="padding:9px 4px 9px 12px"><button class="act${isFav?' fav-on':''}" onclick="toggleFav('${s.sym}')" title="Favourite">&#9733;</button></td>
+      <td><div class="sym-cell"><div class="sym-ico" style="background:${icoBg};color:${icoFg}">${ico}</div><span class="sym-name">${s.sym}</span></div></td>
+      <td class="mono" style="color:var(--text2)">${ccy}${fmtPx(s.price)}</td>
+      <td><span class="chg-pill ${s.chg>=0?'up':'dn'}">${chgSign}${s.chg.toFixed(2)}%</span></td>
+      <td class="td-sigs"><div class="sigs">${chips}${empty}</div></td>
+      <td><div class="act-cell">
+        <button class="act${isAlert?' alert-on':''}" onclick="openAlertConfig('${s.sym}')" title="Configure alerts">&#128276;</button>
+        <button class="act chart" onclick="openChart('${s.sym}')" title="Open on TradingView">&#x2197;</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function sortBy(col){if(S.sort===col)S.sortDir*=-1;else{S.sort=col;S.sortDir=1;}render();}
+function toggleF(type){
+  const ids={bull:'fb',bear:'fe',touch:'ft',near:'fn'};
+  const el=document.getElementById(ids[type]);
+  S.fc.has(type)?(S.fc.delete(type),el.classList.remove('on')):(S.fc.add(type),el.classList.add('on'));
+  render();
+}
+function openEmaPanel(){const p=document.getElementById('emaPanel');p.classList.add('open');renderTfChips();renderEmaPanel();}
+function renderEmaPanel(){
+  document.getElementById('epRows').innerHTML=S.emas.map((e,i)=>{
+    const tfs=ALL_TFS.map(tf=>{const on=e.tfs.includes(tf);return`<label class="tf-ck${on?' on':''}"><input type="checkbox" ${on?'checked':''} onchange="toggleEmaTf(${i},'${tf}',this.checked)">${tf}</label>`;}).join('');
+    return`<div class="ep-row"><span class="ep-lbl">EMA</span><input class="ep-num" type="number" value="${e.period}" min="1" max="500" data-idx="${i}" onchange="updateEmaPeriod(${i},this.value)"><div class="ep-swatch" style="background:${e.col}"></div><div class="ep-tfs">${tfs}</div><button class="ep-rm" onclick="removeEma(${i})" title="Remove">&#x2715;</button></div>`;
+  }).join('');
+}
+function toggleEmaTf(i,tf,on){
+  if(on){if(!S.emas[i].tfs.includes(tf))S.emas[i].tfs.push(tf);}
+  else{S.emas[i].tfs=S.emas[i].tfs.filter(t=>t!==tf);}
+  const lbl=event.target.closest('.tf-ck');if(lbl)lbl.classList.toggle('on',on);
+}
+function updateEmaPeriod(i,val){const v=parseInt(val);if(v&&v>0&&v<=500)S.emas[i].period=v;}
+function addEma(){
+  const v=parseInt(document.getElementById('newP').value);
+  if(!v||v<1||v>500){toast('Enter a valid period (1\u2013500)','\u26a0');return;}
+  if(S.emas.find(e=>e.period===v)){toast('EMA '+v+' already exists','\u26a0');return;}
+  S.emas.push({period:v,tfs:['1h','4h'],col:ECOLS[S.emas.length%ECOLS.length]});
+  S.emas.sort((a,b)=>a.period-b.period);
+  document.getElementById('newP').value='';renderEmaPanel();
+}
+function removeEma(i){if(S.emas.length<=1){toast('Keep at least one EMA','\u26a0');return;}S.emas.splice(i,1);renderEmaPanel();}
+function applyEmas(){
+  document.querySelectorAll('.ep-num[data-idx]').forEach(inp=>{const i=parseInt(inp.dataset.idx),v=parseInt(inp.value);if(v&&v>0&&v<=500)S.emas[i].period=v;});
+  S.emas.sort((a,b)=>a.period-b.period);
+  localStorage.setItem('ema_cfg',JSON.stringify(S.emas));
+  // Clear cache so next refresh fetches fresh candles for new EMA periods/TFs
+  Object.keys(_cache).forEach(k=>delete _cache[k]);
+  buildData();render();toast('EMA settings saved — refreshing…','✓');
+  document.getElementById('emaPanel').classList.remove('open');
+  if(!S.demo)setTimeout(doRefresh,300);
+}
+function resetEmas(){
+  S.emas=[
+    {period:9,  tfs:['1d','1w'],col:'#1e90ff'},
+    {period:21, tfs:['1d','1w'],col:'#ffb700'},
+    {period:50, tfs:['1d','1w'],col:'#00d084'},
+    {period:200,tfs:['1d','1w'],col:'#ff4560'},
+  ];
+  localStorage.setItem('ema_cfg',JSON.stringify(S.emas));
+  localStorage.setItem('ema_cfg_ver','4.3');
+  Object.keys(_cache).forEach(k=>delete _cache[k]);
+  renderEmaPanel();renderTfChips();
+  buildData();render();
+  toast('Reset to EMA 9 · 21 · 50 · 200 — refreshing…','✓');
+  if(!S.demo)setTimeout(doRefresh,300);
+}
+function toggleFav(sym){S.favs.has(sym)?S.favs.delete(sym):S.favs.add(sym);localStorage.setItem('ema_favs',JSON.stringify([...S.favs]));render();}
+// ── ALERT CONFIG ──────────────────────────────────────────────────────
+let _alSym=null;
+function openAlertConfig(sym){
+  _alSym=sym;
+  document.getElementById('alOvSym').textContent=sym;
+  document.getElementById('alTf').value='1h';
+  document.getElementById('alPeriod').value='200';
+  document.getElementById('alType').value='touch';
+  renderAlertRules();
+  document.getElementById('alertOv').classList.add('open');
+}
+function renderAlertRules(){
+  const rules=S.alertRules[_alSym]||[];
+  const el=document.getElementById('alRuleList');
+  if(!rules.length){
+    el.innerHTML='<div style="font-family:var(--mono);font-size:.67rem;color:var(--dim);text-align:center;padding:10px 0">No rules yet — add one below</div>';
+    return;
+  }
+  const typeCol={touch:'var(--touch)',near:'var(--near)',bull:'var(--bull)',bear:'var(--bear)',any:'var(--muted)'};
+  const typeIcon={touch:'●',near:'◎',bull:'▲',bear:'▼',any:'◈'};
+  el.innerHTML=rules.map((r,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px">
+      <span style="font-family:var(--mono);font-size:.72rem;font-weight:600;background:rgba(41,121,255,.12);color:var(--accent);padding:2px 8px;border-radius:4px">${r.tf}</span>
+      <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted)">EMA${r.period}</span>
+      <span style="font-family:var(--mono);font-size:.72rem;font-weight:600;color:${typeCol[r.type]}">${typeIcon[r.type]} ${r.type}</span>
+      <button onclick="removeAlertRule(${i})" style="margin-left:auto;background:none;border:none;color:var(--dim);cursor:pointer;font-size:.8rem;padding:2px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--bear)'" onmouseout="this.style.color='var(--dim)'">✕</button>
+    </div>`).join('');
+}
+function addAlertRule(){
+  const tf=document.getElementById('alTf').value;
+  const period=parseInt(document.getElementById('alPeriod').value)||200;
+  const type=document.getElementById('alType').value;
+  if(!S.alertRules[_alSym])S.alertRules[_alSym]=[];
+  // Prevent duplicate
+  const exists=S.alertRules[_alSym].some(r=>r.tf===tf&&r.period===period&&r.type===type);
+  if(exists){toast('Rule already exists','⚠');return;}
+  S.alertRules[_alSym].push({tf,period,type});
+  S.alertSyms.add(_alSym);
+  saveAlertRules();
+  renderAlertRules();
+  render();
+  toast(`Alert: ${_alSym} · ${tf} · EMA${period} · ${type}`,'🔔');
+}
+function removeAlertRule(idx){
+  if(!S.alertRules[_alSym])return;
+  S.alertRules[_alSym].splice(idx,1);
+  if(!S.alertRules[_alSym].length){delete S.alertRules[_alSym];S.alertSyms.delete(_alSym);}
+  saveAlertRules();renderAlertRules();render();
+}
+function clearAlertRules(){
+  delete S.alertRules[_alSym];S.alertSyms.delete(_alSym);
+  saveAlertRules();renderAlertRules();render();
+}
+function saveAlertRules(){
+  localStorage.setItem('ema_rules',JSON.stringify(S.alertRules));
+  localStorage.setItem('ema_as',JSON.stringify([...S.alertSyms]));
+}
+function renderTfChips(){
+  document.getElementById('epTfChips').innerHTML=ALL_TFS.map(tf=>{
+    const on=S.activeTfs.has(tf);
+    return`<button class="ep-tf-chip${on?' on':''}" onclick="toggleActiveTf('${tf}',this)">${tf}</button>`;
+  }).join('');
+}
+function toggleActiveTf(tf,el){
+  const on=S.activeTfs.has(tf);
+  if(on&&S.activeTfs.size===1){toast('Keep at least one timeframe active','\u26a0');return;}
+  on?S.activeTfs.delete(tf):S.activeTfs.add(tf);
+  el.classList.toggle('on',!on);
+  localStorage.setItem('ema_tfs',JSON.stringify([...S.activeTfs]));
+  syncTfDropdown();buildData();render();
+}
+function syncTfDropdown(){
+  const sel=document.getElementById('tfSel'),cur=sel.value;
+  sel.innerHTML='<option value="all">All TFs</option>'+ALL_TFS.filter(tf=>S.activeTfs.has(tf)).map(tf=>`<option value="${tf}"${tf===cur?' selected':''}>${tf}</option>`).join('');
+  if(cur!=='all'&&!S.activeTfs.has(cur))sel.value='all';
+}
+const _seen=new Set();
+function checkAlerts(){
+  S.syms.forEach(s=>{
+    const rules=S.alertRules[s.sym];
+    if(!rules||!rules.length)return;
+    rules.forEach(rule=>{
+      s.sigs.forEach(g=>{
+        if(g.tf!==rule.tf)return;
+        if(g.period!==rule.period)return;
+        if(rule.type!=='any'&&g.type!==rule.type)return;
+        const k=`${s.sym}|${g.tf}|${g.period}|${g.type}|${Math.floor(Date.now()/25000)}`;
+        if(!_seen.has(k)){
+          _seen.add(k);
+          const ds=(g.dist>=0?'+':'')+g.dist.toFixed(2)+'%';
+          pushLog({sym:s.sym,type:g.type,msg:`${g.tf} · EMA${g.period} · ${ds}`,price:s.price});
+        }
+      });
+    });
+  });
+}
+function pushLog(entry){
+  entry.id=Date.now()+Math.random();entry.time=new Date().toISOString();
+  S.log.unshift(entry);if(S.log.length>200)S.log.pop();
+  localStorage.setItem('ema_log',JSON.stringify(S.log));
+  renderLog();document.getElementById('aBadge').textContent=S.log.length;
+  const icon=entry.type==='bull'?'\u25b2':entry.type==='bear'?'\u25bc':'\u25cf';
+  toast(`${entry.sym} \u2014 ${entry.msg}`,icon);
+  if(S.sound)playSound(entry.type);
+}
+function setAhF(f){
+  S.ahf=f;
+  document.querySelectorAll('.ahf').forEach(b=>{b.className='ahf'+(b.dataset.f===f?' on'+(f==='all'?'':' '+f):'');});
+  renderLog();
+}
+function renderLog(){
+  const el=document.getElementById('ahList');
+  const list=S.ahf==='all'?S.log:S.log.filter(a=>a.type===S.ahf);
+  if(!list.length){el.innerHTML='<div class="empty">No alerts match this filter.</div>';return;}
+  el.innerHTML=list.slice(0,60).map(a=>{
+    const t=new Date(a.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const ccy=SYM_CCY[a.sym]||'$';
+    return`<div class="ah-item"><div class="ah-bar ${a.type}"></div><div class="ah-sym">${a.sym} <span style="font-family:var(--mono);font-size:.59rem;color:var(--muted);font-weight:400">${ccy}${fmtPx(a.price)}</span></div><div class="ah-meta">${a.msg} &nbsp;<span class="ah-type ${a.type}">${a.type}</span></div><div class="ah-time">${t}</div></div>`;
+  }).join('');
+}
+function clearLog(){S.log=[];localStorage.removeItem('ema_log');renderLog();document.getElementById('aBadge').textContent=0;}
+function openChart(sym){
+  const nasdaq=['AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','AMD','NFLX','ORCL','PLTR','CRM','SHOP','COIN','MSTR'];
+  const nyse=['SQ','IBM','JPM','BAC','GS','WMT','XOM'];
+  const india=['RELIANCE','TCS','HDFCBANK','INFY','ICICIBANK','HINDUNILVR','SBIN','BHARTIARTL','ITC','KOTAKBANK','LT','HCLTECH','AXISBANK','WIPRO','MARUTI','TATAMOTORS','TITAN','SUNPHARMA','ULTRACEMCO','BAJFINANCE'];
+  const crypto=['BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOGE','DOT','LINK','MATIC','LTC','UNI','ATOM','NEAR','ARB','OP','INJ','SUI','APT'];
+  const indexMap={
+    NIFTY50:'NSE:NIFTY',BANKNIFTY:'NSE:BANKNIFTY',NIFTYMID:'NSE:NIFTYMIDCAP100',SENSEX:'BSE:SENSEX',
+    SPX:'SP:SPX',NDX:'NASDAQ:NDX',DJI:'DJ:DJI',DAX:'XETR:DAX',
+    FTSE:'TVC:UKX',NIKKEI:'INDEX:NKY',HSI:'TVC:HSI',ASX200:'ASX:XJO',CAC40:'EURONEXT:PX1',VIX:'CBOE:VIX'
+  };
+  let tvSym;
+  if(indexMap[sym]) tvSym=indexMap[sym];
+  else if(nasdaq.includes(sym)) tvSym='NASDAQ:'+sym;
+  else if(nyse.includes(sym)) tvSym='NYSE:'+sym;
+  else if(india.includes(sym)) tvSym='NSE:'+sym;
+  else if(crypto.includes(sym)) tvSym='BINANCE:'+sym+'USDT';
+  else if(sym.includes('/')) tvSym='FX:'+sym.replace('/','');
+  else tvSym=sym;
+  window.open('https://www.tradingview.com/chart/?symbol='+encodeURIComponent(tvSym),'_blank');
+}
+// ── API KEY ──────────────────────────────────────────────────────────
+function openApiKey(){
+  document.getElementById('apiKeyIn').value=S.fhKey||'';
+  document.getElementById('apiMsg').textContent='';
+  document.getElementById('apiStatus').textContent=S.fhKey?'Live data active — Finnhub connected':'Paste your free Finnhub key to go live';
+  document.getElementById('apiOv').classList.add('open');
+}
+function saveApiKey(){
+  const k=document.getElementById('apiKeyIn').value.trim();
+  if(!k){setApiMsg('Paste your Finnhub API key first','var(--bear)');return;}
+  localStorage.setItem('ema_fhkey',k);
+  S.fhKey=k;S.demo=false;
+  document.getElementById('demoPill').style.display='none';
+  setApiMsg('✓ Connected! Fetching live data…','var(--bull)');
+  updateStatusMode();
+  setTimeout(()=>{closeOv('apiOv');doRefresh();},900);
+}
+async function testApiKey(){
+  const k=document.getElementById('apiKeyIn').value.trim();
+  if(!k){setApiMsg('Paste your key first','var(--bear)');return;}
+  setApiMsg('Testing…','var(--text3)');
+  try{
+    const r=await fetch(`${FH_BASE}/quote?symbol=AAPL&token=${k}`);
+    const d=await r.json();
+    if(d.c){setApiMsg('✓ Key works — AAPL: $'+d.c.toFixed(2),'var(--bull)');}
+    else{setApiMsg('✗ No data returned — check your key','var(--bear)');}
+  }catch(e){setApiMsg('✗ '+e.message,'var(--bear)');}
+}
+function clearApiKey(){
+  localStorage.removeItem('ema_fhkey');
+  S.fhKey='';S.demo=true;
+  document.getElementById('apiKeyIn').value='';
+  document.getElementById('demoPill').style.display='';
+  document.getElementById('apiStatus').textContent='Paste your free Finnhub key to go live';
+  setApiMsg('Disconnected — demo mode','var(--text3)');
+  updateStatusMode();
+}
+function setApiMsg(msg,col){const el=document.getElementById('apiMsg');el.textContent=msg;el.style.color=col;}
+
+// ── LIVE DATA ENGINE ─────────────────────────────────────────────────
+// Finnhub free key — finnhub.io (30 sec signup, no card)
+// What works on free tier:
+//   Stocks/Indices: quote ✓  daily candles ✓  intraday ✗  weekly ✗
+//   Crypto (Binance): quote ✓  1h candles ✓  daily ✓
+//   Forex: quote ✓  daily ✓
+//
+// EMA computation: client-side from daily closes (most reliable)
+// Weekly/Monthly EMAs: resampled from daily (every 5/21 bars)
+// Intraday (1h/4h): available for crypto only on free tier
+
+const FH_BASE='https://finnhub.io/api/v1';
+
+// ── SYMBOL MAPS ───────────────────────────────────────────────────────
+const FH_SYM={
+  // Indices
+  NIFTY50:'^NSEI',BANKNIFTY:'^NSEBANK',NIFTYMID:'^NSMIDCP100',
+  SENSEX:'^BSESN',SPX:'^GSPC',NDX:'^NDX',DJI:'^DJI',
+  DAX:'^GDAXI',FTSE:'^FTSE',NIKKEI:'^N225',
+  HSI:'^HSI',ASX200:'^AXJO',CAC40:'^FCHI',VIX:'^VIX',
+  // Crypto — Binance USDT pairs
+  BTC:'BINANCE:BTCUSDT',ETH:'BINANCE:ETHUSDT',SOL:'BINANCE:SOLUSDT',
+  BNB:'BINANCE:BNBUSDT',XRP:'BINANCE:XRPUSDT',ADA:'BINANCE:ADAUSDT',
+  AVAX:'BINANCE:AVAXUSDT',DOGE:'BINANCE:DOGEUSDT',DOT:'BINANCE:DOTUSDT',
+  LINK:'BINANCE:LINKUSDT',MATIC:'BINANCE:MATICUSDT',LTC:'BINANCE:LTCUSDT',
+  UNI:'BINANCE:UNIUSDT',ATOM:'BINANCE:ATOMUSDT',NEAR:'BINANCE:NEARUSDT',
+  ARB:'BINANCE:ARBUSDT',OP:'BINANCE:OPUSDT',INJ:'BINANCE:INJUSDT',
+  SUI:'BINANCE:SUIUSDT',APT:'BINANCE:APTUSDT',
+  // Forex
+  'EUR/USD':'EUR','GBP/USD':'GBP','USD/JPY':'JPY','AUD/USD':'AUD',
+  'USD/CAD':'CAD','NZD/USD':'NZD','USD/CHF':'CHF',
+  'EUR/GBP':'EURGBP','EUR/JPY':'EURJPY','GBP/JPY':'GBPJPY',
+  // India NSE
+  RELIANCE:'NSE:RELIANCE',TCS:'NSE:TCS',HDFCBANK:'NSE:HDFCBANK',
+  INFY:'NSE:INFY',ICICIBANK:'NSE:ICICIBANK',HINDUNILVR:'NSE:HINDUNILVR',
+  SBIN:'NSE:SBIN',BHARTIARTL:'NSE:BHARTIARTL',ITC:'NSE:ITC',
+  KOTAKBANK:'NSE:KOTAKBANK',LT:'NSE:LT',HCLTECH:'NSE:HCLTECH',
+  AXISBANK:'NSE:AXISBANK',WIPRO:'NSE:WIPRO',MARUTI:'NSE:MARUTI',
+  TATAMOTORS:'NSE:TATAMOTORS',TITAN:'NSE:TITAN',SUNPHARMA:'NSE:SUNPHARMA',
+  ULTRACEMCO:'NSE:ULTRACEMCO',BAJFINANCE:'NSE:BAJFINANCE',
+  // US stocks — plain ticker
+  AAPL:'AAPL',MSFT:'MSFT',NVDA:'NVDA',GOOGL:'GOOGL',AMZN:'AMZN',
+  META:'META',TSLA:'TSLA',AMD:'AMD',NFLX:'NFLX',ORCL:'ORCL',
+  PLTR:'PLTR',CRM:'CRM',SHOP:'SHOP',SQ:'SQ',COIN:'COIN',
+};
+const CRYPTO_SET=new Set(['BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOGE',
+  'DOT','LINK','MATIC','LTC','UNI','ATOM','NEAR','ARB','OP','INJ','SUI','APT']);
+const FOREX_SET=new Set(['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD',
+  'NZD/USD','USD/CHF','EUR/GBP','EUR/JPY','GBP/JPY']);
+
+function fhSym(sym){return FH_SYM[sym]||sym;}
+function symType(sym){
+  if(CRYPTO_SET.has(sym))return'crypto';
+  if(FOREX_SET.has(sym))return'forex';
+  return'stock'; // stocks + indices
+}
+
+// ── EMA COMPUTATION ───────────────────────────────────────────────────
+// closes: array of prices, oldest→newest
+function computeEMA(closes,period){
+  if(!closes||closes.length<period)return null;
+  const k=2/(period+1);
+  let ema=closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<closes.length;i++)ema=closes[i]*k+ema*(1-k);
+  return ema;
+}
+
+// Resample: take last close of every n bars (daily→weekly: n=5)
+function resample(arr,n){
+  if(n<=1)return arr;
+  const out=[];
+  for(let i=n-1;i<arr.length;i+=n)out.push(arr[i]);
+  return out;
+}
+
+function setStatus(msg){const el=document.getElementById('stMode');if(el)el.textContent=msg;}
+
+// ── RATE LIMITER ──────────────────────────────────────────────────────
+function makeLimiter(maxPerMin){
+  let n=0,t=Date.now();
+  return async function(url){
+    const now=Date.now();
+    if(now-t>60000){n=0;t=now;}
+    if(n>=maxPerMin){
+      const w=62000-(now-t);
+      setStatus(`⏳ Rate limit — ${Math.ceil(w/1000)}s…`);
+      await new Promise(r=>setTimeout(r,w));
+      n=0;t=Date.now();
+    }
+    n++;
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.json();
+  };
+}
+const fhFetch=makeLimiter(55);
+
+// ── FETCH ONE SYMBOL ──────────────────────────────────────────────────
+// Returns: {price, prevClose, closes:{tf:[...oldestToNewest]}}
+async function fetchOne(sym,key){
+  const fsym=fhSym(sym);
+  const type=symType(sym);
+  const now=Math.floor(Date.now()/1000);
+  let price=null,prevClose=null;
+  const closes={};
+
+  // 1. QUOTE — get current price
+  try{
+    if(type==='forex'){
+      const d=await fhFetch(`${FH_BASE}/forex/rates?base=USD&token=${key}`);
+      if(d&&d.quote){
+        const[b,q]=sym.split('/');
+        if(b==='USD'&&d.quote[q])price=1/d.quote[q];
+        else if(q==='USD'&&d.quote[b])price=d.quote[b];
+        else if(d.quote[b]&&d.quote[q])price=d.quote[b]/d.quote[q];
+        prevClose=price;
+      }
+    }else{
+      const d=await fhFetch(`${FH_BASE}/quote?symbol=${encodeURIComponent(fsym)}&token=${key}`);
+      if(d&&d.c){price=d.c;prevClose=d.pc||d.c;}
+      if(d&&(d.error||d.message))throw new Error('Invalid Finnhub key — check your key');
+    }
+  }catch(e){
+    if(e.message.includes('Invalid')||e.message.includes('401'))throw e;
+    console.warn('[FH] quote failed',sym,e.message);
+  }
+
+  // 2. CANDLES — fetch daily (works for all on free tier)
+  // For crypto also fetch 1h for intraday TFs
+  const DAY_FROM=now-1095*86400; // 3 years of daily
+
+  if(type==='crypto'){
+    // Crypto: fetch 1h candles (Binance feed available on free)
+    try{
+      const H1_FROM=now-365*86400;
+      const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=60&from=${H1_FROM}&to=${now}&token=${key}`);
+      if(d&&d.s==='ok'&&d.c?.length){
+        const h1=[...d.c];
+        closes['1h']=h1;
+        closes['4h']=resample(h1,4);
+        closes['3h']=resample(h1,3);
+        // Also use for daily (resample 24 1h bars = 1 day)
+        closes['1d']=resample(h1,24);
+        closes['1w']=resample(closes['1d'],5);
+        closes['1M']=resample(closes['1d'],21);
+      }
+    }catch(e){console.warn('[FH] crypto 1h failed',sym,e.message);}
+
+    // If 1h didn't work, try daily
+    if(!closes['1d']){
+      try{
+        const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
+        if(d&&d.s==='ok'&&d.c?.length){
+          closes['1d']=[...d.c];
+          closes['1w']=resample(closes['1d'],5);
+          closes['1M']=resample(closes['1d'],21);
+        }
+      }catch(e){console.warn('[FH] crypto daily failed',sym,e.message);}
+    }
+
+  }else{
+    // Stocks, Indices, Forex: daily candles only on free tier
+    try{
+      let d;
+      if(type==='forex'){
+        const pair=sym.replace('/','_');
+        d=await fhFetch(`${FH_BASE}/forex/candle?symbol=OANDA:${pair}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
+      }else{
+        d=await fhFetch(`${FH_BASE}/stock/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
+      }
+      if(d&&d.s==='ok'&&d.c?.length){
+        closes['1d']=[...d.c];          // daily closes, oldest→newest
+        closes['1w']=resample(closes['1d'],5);   // weekly: every 5 days
+        closes['1M']=resample(closes['1d'],21);  // monthly: every 21 days
+      }else{
+        console.warn('[FH] stock/index daily no data',sym,d?.s);
+      }
+    }catch(e){console.warn('[FH] stock candle failed',sym,e.message);}
+  }
+
+  // Use last daily close as price if quote failed
+  if(!price&&closes['1d']?.length){
+    price=closes['1d'][closes['1d'].length-1];
+    prevClose=closes['1d'][closes['1d'].length-2]||price;
+  }
+
+  return{price,prevClose,closes};
+}
+
+// ── CACHE + QUEUE ─────────────────────────────────────────────────────
+const _cache={};
+let _queue=[],_running=false;
+
+function rebuildFromCache(){
+  const syms=S.showFavs?[...S.favs]:MARKETS[S.mkt];
+  S.syms=syms.map(sym=>{
+    const c=_cache[sym];
+    if(!c||c.price===null)return{sym,price:BASE_PX[sym]||100,chg:0,sigs:[],_stale:true};
+    const price=c.price||BASE_PX[sym]||100;
+    const prev=c.prevClose||price;
+    const chg=prev&&prev!==price?parseFloat(((price-prev)/prev*100).toFixed(2)):0;
+    const sigs=[];
+    S.emas.forEach(ema=>{
+      ema.tfs.forEach(tf=>{
+        if(!S.activeTfs.has(tf))return;
+        const cl=c.closes?.[tf];
+        if(!cl?.length)return;
+        const emaVal=computeEMA(cl,ema.period);
+        if(emaVal===null)return;
+        const dist=parseFloat(((price-emaVal)/emaVal*100).toFixed(2));
+        const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
+        sigs.push({tf,period:ema.period,dist,type,col:ema.col});
+      });
+    });
+    return{sym,price,chg,sigs};
+  });
+  render();
+}
+
+async function runQueue(){
+  if(_running)return;
+  _running=true;
+  while(_queue.length){
+    const sym=_queue.shift();
+    const done=Object.keys(_cache).length;
+    const total=done+_queue.length+1;
+    setStatus(`⟳ ${sym} (${done+1}/${total})…`);
+    try{
+      const data=await fetchOne(sym,S.fhKey);
+      _cache[sym]={...data,ts:Date.now()};
+      rebuildFromCache();
+    }catch(e){
+      setStatus('✗ '+e.message.slice(0,70));
+      toast(e.message.slice(0,80),'✗');
+      if(e.message.includes('Invalid')||e.message.includes('401')){_queue=[];break;}
+    }
+  }
+  _running=false;
+  const live=Object.values(_cache).filter(c=>c.price!==null).length;
+  setStatus(`Live · Finnhub · ${live} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+}
+
+async function fetchLiveData(syms){
+  if(!S.fhKey)return null;
+  const fresh=syms.filter(s=>!_cache[s]);
+  const stale=syms.filter(s=>_cache[s]&&(Date.now()-(_cache[s].ts||0))>300000);
+  _queue=[...fresh,...stale];
+  if(Object.keys(_cache).length)rebuildFromCache();
+  runQueue();
+  return'queued';
+}
+
+
+async function doRefresh(){
+  clearTimeout(_rt);
+  if(S.fhKey&&!S.demo){
+    const syms=S.showFavs?[...S.favs]:[...MARKETS[S.mkt]];
+    if(syms&&syms.length){
+      const result=await fetchLiveData(syms);
+      if(result){ renderLog();checkAlerts();scheduleRefresh();return; }
+    }
+  }
+  // demo fallback
+  buildData();render();renderLog();checkAlerts();scheduleRefresh();
+}
+function scheduleRefresh(){
+  clearTimeout(_rt);
+  // Refresh every 5 min live (queue handles per-symbol pacing), 30s demo
+  const interval=S.apiKey&&!S.demo?300000:30000;
+  _rt=setTimeout(doRefresh,interval);
+}
+function updateStatusMode(){
+  const ldot=document.getElementById('ldot'),stMode=document.getElementById('stMode');
+  const btnKey=document.getElementById('btnKey');
+  if(S.fhKey&&!S.demo){
+    ldot.className='ldot live';stMode.textContent='Live · Finnhub';
+    btnKey.style.borderColor='rgba(0,208,132,.3)';btnKey.style.color='var(--bull)';
+  } else {
+    ldot.className='ldot demo';stMode.textContent='Demo mode';
+    btnKey.style.borderColor='';btnKey.style.color='';
+  }
+}
+function toggleDemo(){
+  S.demo=!S.demo;document.getElementById('demoPill').style.display=S.demo?'':'none';
+  updateStatusMode();toast('Demo '+(S.demo?'ON':'OFF'),'\u26a1');clearTimeout(_rt);if(S.demo)scheduleRefresh();
+}
+function toggleSound(){S.sound=!S.sound;document.getElementById('btnSnd').textContent=S.sound?'\uD83D\uDD14':'\uD83D\uDD15';toast('Sound '+(S.sound?'on':'off'),S.sound?'\uD83D\uDD14':'\uD83D\uDD15');}
+function playSound(type){
+  try{const ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=type==='bull'?880:type==='bear'?440:660;g.gain.setValueAtTime(.1,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.3);o.start();o.stop(ac.currentTime+.3);}catch(e){}
+}
+function togglePanel(id){document.getElementById(id).classList.toggle('col');}
+function openShare(){
+  // Encode: market, emas (period:col:tfs), active tfs, favs
+  const emaStr=S.emas.map(e=>e.period+':'+encodeURIComponent(e.col)+':'+e.tfs.join('-')).join(',');
+  const tfsStr=[...S.activeTfs].join(',');
+  const favsStr=[...S.favs].join(',');
+  const p=new URLSearchParams({mkt:S.mkt,emas:emaStr,tfs:tfsStr,v:'4'});
+  if(favsStr)p.set('favs',favsStr);
+  document.getElementById('shareUrl').textContent=location.origin+location.pathname+'?'+p;
+  document.getElementById('shareOv').classList.add('open');
+}
+function copyShare(){navigator.clipboard.writeText(document.getElementById('shareUrl').textContent).then(()=>toast('URL copied','\u2398'));}
+function restoreFromUrl(){
+  const p=new URLSearchParams(location.search);
+  if(!p.has('v'))return false; // no share params
+  // Market
+  if(p.has('mkt')&&MARKETS[p.get('mkt')])S.mkt=p.get('mkt');
+  // EMAs
+  if(p.has('emas')){
+    try{
+      const parsed=p.get('emas').split(',').map(chunk=>{
+        const [period,col,tfsRaw]=chunk.split(':');
+        const tfs=tfsRaw?tfsRaw.split('-').filter(tf=>ALL_TFS.includes(tf)):['1h'];
+        return{period:parseInt(period),col:decodeURIComponent(col),tfs};
+      }).filter(e=>e.period>0);
+      if(parsed.length)S.emas=parsed;
+    }catch(e){}
+  }
+  // Active TFs
+  if(p.has('tfs')){
+    const tfs=p.get('tfs').split(',').filter(tf=>ALL_TFS.includes(tf));
+    if(tfs.length)S.activeTfs=new Set(tfs);
+  }
+  // Favs
+  if(p.has('favs')){
+    const favs=p.get('favs').split(',').filter(Boolean);
+    favs.forEach(f=>S.favs.add(f));
+    localStorage.setItem('ema_favs',JSON.stringify([...S.favs]));
+  }
+  localStorage.setItem('ema_cfg',JSON.stringify(S.emas));
+  localStorage.setItem('ema_tfs',JSON.stringify([...S.activeTfs]));
+  return true;
+}
+function dismissPromo(){document.getElementById('promo').style.display='none';localStorage.setItem('ema_b','1');}
+function doEmail(){const v=document.getElementById('emailIn').value;if(!v.includes('@')){toast('Enter a valid email address','\u26a0');return;}toast('Subscribed \u2014 alerts will be sent to '+v,'\u2713');setTimeout(dismissPromo,1400);}
+function doTg(){toast('Opening Telegram\u2026','\u2708');setTimeout(()=>window.open('https://t.me/emascope','_blank'),300);}
+
+// FEEDBACK
+let _fbType='bug';
+function openFeedback(){
+  _fbType='bug';
+  document.querySelectorAll('.fb-type').forEach(b=>b.classList.remove('on'));
+  document.getElementById('fbt-bug').classList.add('on');
+  document.getElementById('fbText').value='';
+  document.getElementById('fbEmail').value='';
+  document.getElementById('fbMsg').textContent='';
+  document.getElementById('feedbackOv').classList.add('open');
+}
+function setFbType(t){
+  _fbType=t;
+  document.querySelectorAll('.fb-type').forEach(b=>b.classList.remove('on'));
+  document.getElementById('fbt-'+t).classList.add('on');
+}
+function submitFeedback(){
+  const txt=document.getElementById('fbText').value.trim();
+  const email=document.getElementById('fbEmail').value.trim();
+  if(!txt){document.getElementById('fbMsg').textContent='Please write something first';document.getElementById('fbMsg').style.color='var(--bear)';return;}
+  // Build mailto link as simple feedback mechanism
+  const sub=encodeURIComponent('[EMAScope Feedback] '+_fbType.charAt(0).toUpperCase()+_fbType.slice(1));
+  const body=encodeURIComponent(txt+(email?'\n\nReply to: '+email:''));
+  window.open('mailto:feedback@emascope.app?subject='+sub+'&body='+body);
+  document.getElementById('fbMsg').textContent='✓ Opening your email client…';
+  document.getElementById('fbMsg').style.color='var(--bull)';
+  setTimeout(()=>closeOv('feedbackOv'),1800);
+}
+function toast(msg,icon=''){
+  const c=document.getElementById('toasts'),t=document.createElement('div');t.className='toast';
+  t.innerHTML=(icon?`<span>${icon}</span>`:'')+`<span>${msg}</span>`;
+  c.appendChild(t);setTimeout(()=>t.remove(),3000);
+}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+function init(){
+  // Always validate EMA config — reset if periods don't match 9/21/50/200
+  const VALID_EMAS=[9,21,50,200];
+  const DEFAULT_EMAS=[
+    {period:9,  tfs:['1d','1w'],col:'#1e90ff'},
+    {period:21, tfs:['1h','4h','1d'],col:'#ffb700'},
+    {period:50, tfs:['4h','1d','1w'],col:'#00d084'},
+    {period:200,tfs:['1d','1w'],     col:'#ff4560'},
+  ];
+  const storedPeriods=S.emas.map(e=>e.period).sort((a,b)=>a-b).join(',');
+  const validPeriods=VALID_EMAS.slice().sort((a,b)=>a-b).join(',');
+  if(storedPeriods!==validPeriods){
+    S.emas=DEFAULT_EMAS;
+    localStorage.setItem('ema_cfg',JSON.stringify(S.emas));
+    localStorage.setItem('ema_cfg_ver','4.3');
+    console.log('EMA config reset: was',storedPeriods,'→ now',validPeriods);
+  }
+  localStorage.setItem('ema_cfg_ver','4.3');
+  if(S.fhKey){S.demo=false;}
+  const restored=restoreFromUrl();
+  if(localStorage.getItem('ema_b'))document.getElementById('promo').style.display='none';
+  if(!S.demo)document.getElementById('demoPill').style.display='none';
+  renderMktTabs();syncTfDropdown();updateStatusMode();
+  buildData();render();renderLog();
+  document.getElementById('aBadge').textContent=S.log.length;
+  if(restored)setTimeout(()=>toast('Settings restored from shared link','🔗'),300);
+  if(!S.log.length){
+    // Seed demo alerts only if log is empty, using symbols from current market
+    const mktSyms=MARKETS[S.mkt];
+    const seeds=[
+      {sym:mktSyms[0],type:'touch',msg:'1h · EMA21 · +0.09%'},
+      {sym:mktSyms[1],type:'bull', msg:'4h · EMA50 · +1.24%'},
+      {sym:mktSyms[2],type:'bear', msg:'15m · EMA9 · −0.88%'},
+    ];
+    setTimeout(()=>{
+      seeds.forEach(a=>{
+        const price=BASE_PX[a.sym]||100;
+        S.log.unshift({...a,id:Date.now()+Math.random(),price,time:new Date().toISOString()});
+      });
+      renderLog();document.getElementById('aBadge').textContent=S.log.length;
+    },400);
+  }
+  scheduleRefresh();
+}
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open'));});
+
+init();
+</script>
+</body>
+</body>
+</html>
