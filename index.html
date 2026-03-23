@@ -928,12 +928,17 @@ const SYM_CCY={
   BTC:'$',ETH:'$',SOL:'$',BNB:'$',XRP:'$',ADA:'$',AVAX:'$',DOGE:'$',DOT:'$',LINK:'$',MATIC:'$',LTC:'$',UNI:'$',ATOM:'$',NEAR:'$',ARB:'$',OP:'$',INJ:'$',SUI:'$',APT:'$',
 };
 const BASE_PX={
-  BTC:67840,ETH:3521,SOL:178,BNB:582,XRP:.62,ADA:.48,AVAX:38,DOGE:.167,DOT:8.9,LINK:15,MATIC:.88,LTC:89,UNI:9.7,ATOM:11,NEAR:6.8,ARB:1.23,OP:2.87,INJ:28,SUI:1.98,APT:9.1,
-  AAPL:189,MSFT:415,NVDA:875,GOOGL:172,AMZN:196,META:505,TSLA:248,AMD:167,NFLX:628,ORCL:124,PLTR:24,CRM:290,SHOP:74,SQ:72,COIN:195,
-  RELIANCE:2945,TCS:3876,HDFCBANK:1642,INFY:1789,ICICIBANK:1245,HINDUNILVR:2380,SBIN:815,BHARTIARTL:1590,ITC:468,KOTAKBANK:1923,LT:3560,HCLTECH:1724,AXISBANK:1178,WIPRO:520,MARUTI:12450,TATAMOTORS:985,TITAN:3890,SUNPHARMA:1623,ULTRACEMCO:11200,BAJFINANCE:7845,
-  'EUR/USD':1.085,'GBP/USD':1.268,'USD/JPY':149.2,'AUD/USD':.654,'USD/CAD':1.36,'NZD/USD':.609,'USD/CHF':.896,'EUR/GBP':.856,'EUR/JPY':161.9,'GBP/JPY':189.4,
-  NIFTY50:22350,BANKNIFTY:48200,NIFTYMID:44800,SENSEX:73700,
-  SPX:5200,NDX:18200,DJI:38900,VIX:14.2,DAX:17800,FTSE:7620,NIKKEI:38400,HSI:17100,ASX200:7580,CAC40:8050,
+  // Crypto (approx Mar 2026)
+  BTC:84000,ETH:2100,SOL:135,BNB:590,XRP:2.4,ADA:.72,AVAX:22,DOGE:.18,DOT:5.2,LINK:14,MATIC:.38,LTC:98,UNI:7.8,ATOM:4.5,NEAR:3.1,ARB:.52,OP:.87,INJ:12,SUI:2.8,APT:6.3,
+  // US stocks (approx Mar 2026, post-split adjusted)
+  AAPL:224,MSFT:388,NVDA:183,GOOGL:170,AMZN:204,META:590,TSLA:268,AMD:108,NFLX:960,ORCL:168,PLTR:98,CRM:298,SHOP:108,SQ:68,COIN:212,
+  // India stocks (approx Mar 2026, INR)
+  RELIANCE:1243,TCS:3698,HDFCBANK:1721,INFY:1823,ICICIBANK:1389,HINDUNILVR:2245,SBIN:782,BHARTIARTL:1698,ITC:432,KOTAKBANK:2089,LT:3421,HCLTECH:1598,AXISBANK:1124,WIPRO:298,MARUTI:11800,TATAMOTORS:689,TITAN:3245,SUNPHARMA:1789,ULTRACEMCO:10900,BAJFINANCE:7123,
+  // Forex
+  'EUR/USD':1.088,'GBP/USD':1.294,'USD/JPY':149.5,'AUD/USD':.628,'USD/CAD':1.438,'NZD/USD':.573,'USD/CHF':.884,'EUR/GBP':.840,'EUR/JPY':162.8,'GBP/JPY':193.6,
+  // Indices
+  NIFTY50:22890,BANKNIFTY:49800,NIFTYMID:46200,SENSEX:75800,
+  SPX:5640,NDX:19800,DJI:41800,VIX:19.8,DAX:22800,FTSE:8620,NIKKEI:37200,HSI:23400,ASX200:7980,CAC40:8120,
 };
 const S={
   mkt:'Indices',demo:true,sound:true,syms:[],
@@ -1411,33 +1416,38 @@ async function fetchOne(sym,key){
   let price=null,prevClose=null;
   const closes={};
 
-  // 1. QUOTE — get current price
-  try{
-    if(type==='forex'){
-      const d=await fhFetch(`${FH_BASE}/forex/rates?base=USD&token=${key}`);
-      if(d&&d.quote){
-        const[b,q]=sym.split('/');
-        if(b==='USD'&&d.quote[q])price=1/d.quote[q];
-        else if(q==='USD'&&d.quote[b])price=d.quote[b];
-        else if(d.quote[b]&&d.quote[q])price=d.quote[b]/d.quote[q];
+  // Strategy: fetch candles first, use LAST BAR as price
+  // This guarantees price and EMA are on the SAME scale (both split-adjusted)
+  // Finnhub quote and candle history can be on different scales after splits
+
+  const DAY_FROM=now-1825*86400; // 5 years — enough for EMA200 weekly (200 weeks = ~4yr)
+
+  if(type==='forex'){
+    // Forex: quote for current rate, daily candles for EMA
+    try{
+      const q=await fhFetch(`${FH_BASE}/forex/rates?base=USD&token=${key}`);
+      if(q&&q.quote){
+        const[b,qt]=sym.split('/');
+        if(b==='USD'&&q.quote[qt]) price=1/q.quote[qt];
+        else if(qt==='USD'&&q.quote[b]) price=q.quote[b];
+        else if(q.quote[b]&&q.quote[qt]) price=q.quote[b]/q.quote[qt];
         prevClose=price;
       }
-    }else{
-      const d=await fhFetch(`${FH_BASE}/quote?symbol=${encodeURIComponent(fsym)}&token=${key}`);
-      if(d&&d.c){price=d.c;prevClose=d.pc||d.c;}
-      if(d&&(d.error||d.message))throw new Error('Invalid Finnhub key — check your key');
-    }
-  }catch(e){
-    if(e.message.includes('Invalid')||e.message.includes('401'))throw e;
-    console.warn('[FH] quote failed',sym,e.message);
-  }
+    }catch(e){console.warn('[FH] forex rate failed',sym,e.message);}
+    try{
+      const pair=sym.replace('/','_');
+      const d=await fhFetch(`${FH_BASE}/forex/candle?symbol=OANDA:${pair}&resolution=D&count=1500&token=${key}`);
+      if(d&&d.s==='ok'&&d.c?.length){
+        closes['1d']=[...d.c];
+        closes['1w']=resample(closes['1d'],5);
+        closes['1M']=resample(closes['1d'],21);
+        if(!price) price=closes['1d'][closes['1d'].length-1];
+        if(!prevClose) prevClose=closes['1d'][closes['1d'].length-2]||price;
+      }
+    }catch(e){console.warn('[FH] forex candle failed',sym,e.message);}
 
-  // 2. CANDLES — fetch daily (works for all on free tier)
-  // For crypto also fetch 1h for intraday TFs
-  const DAY_FROM=now-1095*86400; // 3 years of daily
-
-  if(type==='crypto'){
-    // Crypto: fetch 1h candles (Binance feed available on free)
+  }else if(type==='crypto'){
+    // Crypto: try 1h first (Binance feed), fall back to daily
     try{
       const H1_FROM=now-365*86400;
       const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=60&from=${H1_FROM}&to=${now}&token=${key}`);
@@ -1446,49 +1456,84 @@ async function fetchOne(sym,key){
         closes['1h']=h1;
         closes['4h']=resample(h1,4);
         closes['3h']=resample(h1,3);
-        // Also use for daily (resample 24 1h bars = 1 day)
         closes['1d']=resample(h1,24);
         closes['1w']=resample(closes['1d'],5);
         closes['1M']=resample(closes['1d'],21);
+        price=h1[h1.length-1];
+        prevClose=h1[h1.length-2]||price;
       }
     }catch(e){console.warn('[FH] crypto 1h failed',sym,e.message);}
-
-    // If 1h didn't work, try daily
     if(!closes['1d']){
       try{
-        const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
+        const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&count=1500&token=${key}`);
         if(d&&d.s==='ok'&&d.c?.length){
           closes['1d']=[...d.c];
           closes['1w']=resample(closes['1d'],5);
           closes['1M']=resample(closes['1d'],21);
+          price=closes['1d'][closes['1d'].length-1];
+          prevClose=closes['1d'][closes['1d'].length-2]||price;
         }
       }catch(e){console.warn('[FH] crypto daily failed',sym,e.message);}
     }
 
   }else{
-    // Stocks, Indices, Forex: daily candles only on free tier
+    // Stocks & Indices:
+    // 1. Quote = live real-time price (d.c = current, d.pc = prev close)
+    // 2. Candles = historical EOD for EMA computation
+    // 3. Scale-adjust candle history to match live quote price
+    //    (handles splits: if quote=$183 but last candle=$877, ratio=0.209)
+
+    // Step 1: Live quote
+    let livePrice=null, livePrevClose=null;
     try{
-      let d;
-      if(type==='forex'){
-        const pair=sym.replace('/','_');
-        d=await fhFetch(`${FH_BASE}/forex/candle?symbol=OANDA:${pair}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
-      }else{
-        d=await fhFetch(`${FH_BASE}/stock/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&from=${DAY_FROM}&to=${now}&token=${key}`);
+      const q=await fhFetch(`${FH_BASE}/quote?symbol=${encodeURIComponent(fsym)}&token=${key}`);
+      console.log(`[FH] quote ${sym}:`,JSON.stringify(q));
+      if(q&&(q.error||q.message||q.s==='error'))throw new Error('Invalid Finnhub key — check your key');
+      if(q&&q.c&&q.c!==0){
+        livePrice=q.c;
+        livePrevClose=q.pc||q.c;
+        console.log(`[FH] ${sym} live price: $${livePrice}, prevClose: $${livePrevClose}`);
+      } else {
+        console.warn(`[FH] ${sym} quote returned no price:`,q);
       }
+    }catch(e){
+      if(e.message.includes('Invalid')||e.message.includes('401'))throw e;
+      console.warn('[FH] stock quote failed',sym,e.message);
+    }
+
+    // Step 2: Daily candles for EMA history
+    try{
+      // Request 1500 daily bars explicitly — more reliable than date range on free tier
+      const d=await fhFetch(`${FH_BASE}/stock/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&count=1500&token=${key}`);
       if(d&&d.s==='ok'&&d.c?.length){
-        closes['1d']=[...d.c];          // daily closes, oldest→newest
-        closes['1w']=resample(closes['1d'],5);   // weekly: every 5 days
-        closes['1M']=resample(closes['1d'],21);  // monthly: every 21 days
+        let daily=[...d.c]; // raw closes oldest→newest
+
+        // Step 3: Scale-adjust if quote differs from last candle
+        // This corrects for stock splits between candle history and live price
+        const lastCandle=daily[daily.length-1];
+        if(livePrice&&lastCandle&&Math.abs(livePrice/lastCandle-1)>0.05){
+          // Price ratio differs by >5% — apply adjustment to entire history
+          const ratio=livePrice/lastCandle;
+          daily=daily.map(p=>p*ratio);
+          console.log(`[FH] ${sym}: scale-adjusted candles by ${ratio.toFixed(4)} (split detected)`);
+        }
+
+        closes['1d']=daily;
+        closes['1w']=resample(daily,5);
+        closes['1M']=resample(daily,21);
+        const last1d=closes['1d'][closes['1d'].length-1];
+        const last1w=closes['1w'][closes['1w'].length-1];
+        console.log(`[FH] ${sym}: ${closes['1d'].length} daily bars, last=$${last1d?.toFixed(2)} | ${closes['1w'].length} weekly bars, last=$${last1w?.toFixed(2)}`);
+        if(Math.abs(last1d-last1w)<0.01) console.warn(`[FH] ${sym}: WARNING - 1d and 1w last bars identical, resampling may have failed`);
       }else{
-        console.warn('[FH] stock/index daily no data',sym,d?.s);
+        console.warn('[FH] stock daily no data',sym,d?.s);
       }
     }catch(e){console.warn('[FH] stock candle failed',sym,e.message);}
-  }
 
-  // Use last daily close as price if quote failed
-  if(!price&&closes['1d']?.length){
-    price=closes['1d'][closes['1d'].length-1];
-    prevClose=closes['1d'][closes['1d'].length-2]||price;
+    // Use live quote as price; fall back to last candle
+    price=livePrice||(closes['1d']?.[closes['1d'].length-1])||null;
+    prevClose=livePrevClose||(closes['1d']?.[closes['1d'].length-2])||price;
+    console.log(`[FH] ${sym} FINAL: price=$${price?.toFixed(2)} source=${livePrice?'LIVE_QUOTE':'LAST_CANDLE'} prevClose=$${prevClose?.toFixed(2)}`);
   }
 
   return{price,prevClose,closes};
@@ -1681,9 +1726,9 @@ function init(){
   const VALID_EMAS=[9,21,50,200];
   const DEFAULT_EMAS=[
     {period:9,  tfs:['1d','1w'],col:'#1e90ff'},
-    {period:21, tfs:['1h','4h','1d'],col:'#ffb700'},
-    {period:50, tfs:['4h','1d','1w'],col:'#00d084'},
-    {period:200,tfs:['1d','1w'],     col:'#ff4560'},
+    {period:21, tfs:['1d','1w'],col:'#ffb700'},
+    {period:50, tfs:['1d','1w'],col:'#00d084'},
+    {period:200,tfs:['1d','1w'],col:'#ff4560'},
   ];
   const storedPeriods=S.emas.map(e=>e.period).sort((a,b)=>a-b).join(',');
   const validPeriods=VALID_EMAS.slice().sort((a,b)=>a-b).join(',');
