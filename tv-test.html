@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>TV Scanner Test</title>
+<style>body{font-family:monospace;background:#050810;color:#e2ecf8;padding:20px}
+pre{background:#0a1220;padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;font-size:12px}
+button{background:#4f8ef7;border:none;color:#fff;padding:8px 16px;border-radius:5px;cursor:pointer;margin:4px}
+</style></head><body>
+<h2>TradingView Scanner Raw Response Test</h2>
+<button onclick="test1()">Test 1: Basic (no interval)</button>
+<button onclick="test2()">Test 2: EMA9|1W in columns</button>
+<button onclick="test3()">Test 3: Check what fields TV actually returns</button>
+<div id="out"></div>
+<script>
+const TV='https://scanner.tradingview.com/global/scan';
+function log(html){document.getElementById('out').insertAdjacentHTML('beforeend','<pre>'+html+'</pre>');}
+
+async function test1(){
+  log('--- Test 1: Daily EMA only ---');
+  const r=await fetch(TV,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({symbols:{tickers:['NASDAQ:NVDA','NASDAQ:AAPL']},
+      columns:['close','change_from_open_abs_pct','EMA9','EMA21','EMA50','EMA200']})});
+  const d=await r.json();
+  log(JSON.stringify(d,null,2));
+}
+
+async function test2(){
+  log('--- Test 2: Weekly EMA with |1W suffix ---');
+  const r=await fetch(TV,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({symbols:{tickers:['NASDAQ:NVDA','NASDAQ:AAPL']},
+      columns:['close','EMA9','EMA200','EMA9|1W','EMA200|1W','EMA9|1D','EMA200|1D']})});
+  const d=await r.json();
+  log(JSON.stringify(d,null,2));
+}
+
+async function test3(){
+  log('--- Test 3: Try different interval formats ---');
+  const r=await fetch(TV,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({symbols:{tickers:['NASDAQ:NVDA']},
+      columns:['close',
+        'EMA9','EMA200',           // default (1D?)
+        'EMA9|1D','EMA200|1D',     // explicit 1D
+        'EMA9|1W','EMA200|1W',     // weekly
+        'EMA9|1M','EMA200|1M',     // monthly  
+        'EMA9|60','EMA200|60',     // 1h
+        'EMA9|240','EMA200|240',   // 4h
+      ]})});
+  const d=await r.json();
+  log('Raw: '+JSON.stringify(d,null,2));
+  if(d.data&&d.data[0]){
+    const vals=d.data[0].d;
+    const cols=['close','EMA9','EMA200','EMA9|1D','EMA200|1D','EMA9|1W','EMA200|1W','EMA9|1M','EMA200|1M','EMA9|60','EMA200|60','EMA9|240','EMA200|240'];
+    let out='NVDA values:\n';
+    cols.forEach((c,i)=>out+=`  ${c}: ${vals[i]}\n`);
+    log(out);
+  }
+}
+</script></body></html>
