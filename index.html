@@ -1359,85 +1359,75 @@ const TV_INTERVAL={
 function tvSym(sym){ return TV_SYM[sym]||sym; }
 function setStatus(msg){const el=document.getElementById('stMode');if(el)el.textContent=msg;}
 
-// Fetch EMA values for all symbols on ONE specific timeframe
-// TV scanner returns columns: close, change_from_open_abs_pct, EMA9, EMA21, EMA50, EMA200
-async function fetchTVTimeframe(syms, tf){
-  const interval=TV_INTERVAL[tf]||'1D';
+async function fetchLiveData(syms){
+  const tfs=[...S.activeTfs].filter(tf=>TV_INTERVAL[tf]);
+  if(!tfs.length) tfs.push('1d');
+
+  setStatus('⟳ Fetching from TradingView…');
+
   const tvSyms=syms.map(tvSym);
 
-  // Build column list: price + pct + one EMA per configured period
-  const emaCols=S.emas.map(e=>`EMA${e.period}`);
-  const columns=['close','change_from_open_abs_pct',...new Set(emaCols)];
+  // Build columns: close, chg%, then EMA|interval for each period×TF
+  // Correct TV format: "EMA9" for 1D, "EMA9|1W" for weekly, "EMA9|60" for 1h
+  const columns=['close','change_from_open_abs_pct'];
+  const fieldMap=[]; // [{tf, period, colName}]
+
+  S.emas.forEach(ema=>{
+    ema.tfs.forEach(tf=>{
+      if(!tfs.includes(tf)) return;
+      const interval=TV_INTERVAL[tf]||'1D';
+      // 1D is the default — no suffix needed; others need |interval
+      const colName=interval==='1D'?`EMA${ema.period}`:`EMA${ema.period}|${interval}`;
+      if(!columns.includes(colName)) columns.push(colName);
+      fieldMap.push({tf,period:ema.period,colName});
+    });
+  });
 
   const body={
     symbols:{tickers:tvSyms},
     columns,
   };
 
-  // TV scanner endpoint — interval goes in URL for multi-TF
-  const url=interval==='1D'
-    ? `${TV_SCAN}/global/scan`
-    : `${TV_SCAN}/global/scan?interval=${interval}`;
-
-  const r=await fetch(url,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body),
-  });
-  if(!r.ok) throw new Error(`TV scanner ${r.status} for ${tf}`);
-  const data=await r.json();
-  return{rows:data.data||[],columns};
-}
-
-async function fetchLiveData(syms){
-  // Get active TFs that TV supports
-  const tfs=[...S.activeTfs].filter(tf=>TV_INTERVAL[tf]);
-  if(!tfs.length) tfs.push('1d');
-
-  setStatus('⟳ Fetching from TradingView…');
-
-  // Build result map: sym → {price, chg, emasByTf:{tf:{period:value}}}
-  const symMap={};
-  syms.forEach(s=>{symMap[tvSym(s)]={sym:s,price:null,chg:0,emasByTf:{}};});
-
   try{
-    // One request per timeframe — all symbols in each request
-    for(const tf of tfs){
-      let rows,columns;
-      try{
-        ({rows,columns}=await fetchTVTimeframe(syms,tf));
-      }catch(e){
-        console.warn('[TV] failed for TF',tf,e.message);
-        continue;
-      }
+    // ONE request returns ALL timeframes — interval is encoded in field name
+    const r=await fetch(`${TV_SCAN}/global/scan`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    if(!r.ok) throw new Error('TV scanner HTTP '+r.status);
+    const data=await r.json();
+    const rows=data.data||[];
 
-      // Parse rows
-      rows.forEach(row=>{
-        const entry=symMap[row.s];
-        if(!entry) return;
-        const vals=row.d||[];
-        // columns: [close, change_pct, EMA9, EMA21, ...]
-        if(vals[0]!=null) entry.price=vals[0];
-        if(vals[1]!=null) entry.chg=parseFloat((vals[1]||0).toFixed(2));
-        entry.emasByTf[tf]={};
-        columns.slice(2).forEach((col,i)=>{
-          const period=parseInt(col.replace('EMA',''));
-          if(!isNaN(period)&&vals[i+2]!=null){
-            entry.emasByTf[tf][period]=vals[i+2];
-          }
-        });
+    if(!rows.length) throw new Error('TradingView returned no data');
+
+    // Build sym→entry map
+    const symMap={};
+    syms.forEach(s=>{symMap[tvSym(s)]={sym:s,price:null,chg:0,emasByTf:{}};});
+
+    rows.forEach(row=>{
+      const entry=symMap[row.s];
+      if(!entry) return;
+      const vals=row.d||[];
+      entry.price=vals[0]||null;
+      entry.chg=parseFloat((vals[1]||0).toFixed(2));
+      // Map each field back to {tf:{period:value}}
+      fieldMap.forEach(({tf,period,colName})=>{
+        const idx=columns.indexOf(colName);
+        if(idx<0) return;
+        const v=vals[idx];
+        if(v==null) return;
+        if(!entry.emasByTf[tf]) entry.emasByTf[tf]={};
+        entry.emasByTf[tf][period]=v;
       });
-    }
+    });
 
-    // Build final S.syms array
+    // Build results
     const results=syms.map(sym=>{
-      const tv=tvSym(sym);
-      const entry=symMap[tv];
-      if(!entry||entry.price==null) return{sym,price:BASE_PX[sym]||100,chg:0,sigs:[]};
-      const price=entry.price;
-      const chg=entry.chg;
+      const entry=symMap[tvSym(sym)];
+      if(!entry?.price) return{sym,price:BASE_PX[sym]||100,chg:0,sigs:[]};
+      const{price,chg}=entry;
       const sigs=[];
-
       S.emas.forEach(ema=>{
         ema.tfs.forEach(tf=>{
           if(!S.activeTfs.has(tf)) return;
@@ -1448,17 +1438,22 @@ async function fetchLiveData(syms){
           sigs.push({tf,period:ema.period,dist,type,col:ema.col});
         });
       });
-
       return{sym,price,chg,sigs};
     });
 
-    const live=results.filter(r=>r.price&&r.price!==BASE_PX[r.sym]).length;
-    setStatus(`Live · TradingView · ${live} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+    // Debug: log first symbol's EMA values to verify 1d≠1w
+    if(results[0]){
+      const e=symMap[tvSym(results[0].sym)];
+      console.log('[TV] Sample',results[0].sym,'price:',results[0].price);
+      console.log('[TV] emasByTf:',JSON.stringify(e?.emasByTf));
+    }
+
+    setStatus(`Live · TradingView · ${results.filter(r=>r.price).length} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
     return results;
 
   }catch(e){
     console.error('[TV]',e.message);
-    setStatus('✗ '+e.message.slice(0,60));
+    setStatus('✗ '+e.message);
     toast(e.message.slice(0,80),'✗');
     return null;
   }
