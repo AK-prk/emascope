@@ -670,7 +670,7 @@ td.td-sigs{white-space:normal;overflow:visible;vertical-align:middle}
   </div>
   <div class="spacer"></div>
   <span class="demo-tag" id="demoPill">DEMO</span>
-  <button class="nbtn accent" id="btnKey" onclick="openApiKey()">&#128273; API Key</button>
+  <!-- No API key needed -->
   <button class="nbtn" id="btnSnd" onclick="toggleSound()">&#128276;</button>
   <button class="nbtn" onclick="openShare()">&#8599; Share</button>
   <button class="nbtn purple" onclick="openFeedback()">&#128172; Feedback</button>
@@ -782,12 +782,12 @@ td.td-sigs{white-space:normal;overflow:visible;vertical-align:middle}
     </div>
     <div class="mb" style="display:flex;flex-direction:column;gap:14px;padding-top:16px">
       <div style="background:rgba(0,208,132,.05);border:1px solid rgba(0,208,132,.12);border-radius:var(--r);padding:11px 14px;font-family:var(--mono);font-size:.63rem;color:var(--text2);line-height:1.85">
-        <div style="color:var(--bull);font-weight:600;margin-bottom:5px">✓ 100% free — no credit card, no paid plan</div>
-        <div>Get a free key at <a href="https://finnhub.io" target="_blank" style="color:var(--accent);text-decoration:none">finnhub.io</a> — sign up takes 30 seconds.</div>
-        <div style="margin-top:4px;color:var(--text3)">Covers: US Stocks · Crypto · Indices · India NSE · Forex</div>
-        <div style="color:var(--text3)">Free limit: 60 calls/min — enough for all markets in EMAScope</div>
+        <div style="color:var(--bull);font-weight:600;margin-bottom:5px">✓ One free key — covers price + EMA history</div>
+        <div>Get free key at <a href="https://alphavantage.co" target="_blank" style="color:var(--accent);text-decoration:none">alphavantage.co</a> — enter email, instant key.</div>
+        <div style="margin-top:4px;color:var(--text3)">Covers: US Stocks · India BSE · Crypto · Forex · Indices</div>
+        <div style="color:var(--text3)">Free: 25 calls/day · Results cached per session</div>
       </div>
-      <input id="apiKeyIn" type="password" placeholder="Paste Finnhub API key here…" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:.76rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);padding:10px 13px;border-radius:var(--r);outline:none;transition:border-color .18s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+      <input id="apiKeyIn" type="password" placeholder="Paste Alpha Vantage API key here…" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:.76rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);padding:10px 13px;border-radius:var(--r);outline:none;transition:border-color .18s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn pri" onclick="saveApiKey()">&#10003; Connect</button>
         <button class="btn" onclick="testApiKey()">&#9654; Test Key</button>
@@ -947,7 +947,7 @@ const S={
   alertRules:JSON.parse(localStorage.getItem('ema_rules')||'{}'), // {sym:[{tf,period,type}]}
   log:JSON.parse(localStorage.getItem('ema_log')||'[]').slice(0,200),
   ahf:'all',fc:new Set(),sort:'sym',sortDir:1,csym:null,ctf:'1h',showFavs:false,
-  fhKey:localStorage.getItem('ema_fhkey')||'',
+  fhKey:localStorage.getItem('ema_avkey')||'',  // Alpha Vantage key (single key for everything)
   activeTfs:new Set(JSON.parse(localStorage.getItem('ema_tfs')||'null')||ALL_TFS),
   emas:JSON.parse(localStorage.getItem('ema_cfg')||'null')||[
     {period:9,tfs:['1d','1w'],col:'#1e90ff'},
@@ -1275,62 +1275,78 @@ function openChart(sym){
 function openApiKey(){
   document.getElementById('apiKeyIn').value=S.fhKey||'';
   document.getElementById('apiMsg').textContent='';
-  document.getElementById('apiStatus').textContent=S.fhKey?'Live data active — Finnhub connected':'Paste your free Finnhub key to go live';
+  document.getElementById('apiStatus').textContent=S.fhKey?'Connected — Alpha Vantage active':'Paste your free Alpha Vantage key';
   document.getElementById('apiOv').classList.add('open');
 }
 function saveApiKey(){
   const k=document.getElementById('apiKeyIn').value.trim();
-  if(!k){setApiMsg('Paste your Finnhub API key first','var(--bear)');return;}
-  localStorage.setItem('ema_fhkey',k);
-  S.fhKey=k;S.demo=false;
+  if(!k){setApiMsg('Paste your Alpha Vantage key first','var(--bear)');return;}
+  localStorage.setItem('ema_avkey',k);S.fhKey=k;S.demo=false;
   document.getElementById('demoPill').style.display='none';
-  setApiMsg('✓ Connected! Fetching live data…','var(--bull)');
+  setApiMsg('✓ Saved! Fetching live data…','var(--bull)');
   updateStatusMode();
-  setTimeout(()=>{closeOv('apiOv');doRefresh();},900);
+  setTimeout(()=>{closeOv('apiOv');Object.keys(_cache).forEach(k=>delete _cache[k]);doRefresh();},900);
 }
 async function testApiKey(){
   const k=document.getElementById('apiKeyIn').value.trim();
   if(!k){setApiMsg('Paste your key first','var(--bear)');return;}
   setApiMsg('Testing…','var(--text3)');
   try{
-    const r=await fetch(`${FH_BASE}/quote?symbol=AAPL&token=${k}`);
+    const r=await fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${k}`);
     const d=await r.json();
-    if(d.c){setApiMsg('✓ Key works — AAPL: $'+d.c.toFixed(2),'var(--bull)');}
-    else{setApiMsg('✗ No data returned — check your key','var(--bear)');}
+    const p=d['Global Quote']?.['05. price'];
+    if(p){setApiMsg('✓ Key works — AAPL: $'+parseFloat(p).toFixed(2),'var(--bull)');}
+    else if(d['Note']||d['Information']){setApiMsg('✗ Rate limited — try again in a minute','var(--touch)');}
+    else{setApiMsg('✗ Invalid key — check alphavantage.co','var(--bear)');}
   }catch(e){setApiMsg('✗ '+e.message,'var(--bear)');}
 }
 function clearApiKey(){
-  localStorage.removeItem('ema_fhkey');
-  S.fhKey='';S.demo=true;
+  localStorage.removeItem('ema_avkey');S.fhKey='';S.demo=true;
   document.getElementById('apiKeyIn').value='';
   document.getElementById('demoPill').style.display='';
-  document.getElementById('apiStatus').textContent='Paste your free Finnhub key to go live';
+  document.getElementById('apiStatus').textContent='Paste your free Alpha Vantage key';
   setApiMsg('Disconnected — demo mode','var(--text3)');
   updateStatusMode();
 }
 function setApiMsg(msg,col){const el=document.getElementById('apiMsg');el.textContent=msg;el.style.color=col;}
 
-// ── LIVE DATA ENGINE ─────────────────────────────────────────────────
-// Finnhub free key — finnhub.io (30 sec signup, no card)
-// What works on free tier:
-//   Stocks/Indices: quote ✓  daily candles ✓  intraday ✗  weekly ✗
-//   Crypto (Binance): quote ✓  1h candles ✓  daily ✓
-//   Forex: quote ✓  daily ✓
+// ── LIVE DATA ENGINE — TradingView Scanner API ───────────────────────
+// Source: TradingView's public scanner (same data their screener uses)
+// No API key. No CORS issues. No rate limits.
+// Returns: live price, % change, EMA values for any symbol/timeframe
 //
-// EMA computation: client-side from daily closes (most reliable)
-// Weekly/Monthly EMAs: resampled from daily (every 5/21 bars)
-// Intraday (1h/4h): available for crypto only on free tier
+// How it works:
+// POST to scanner.tradingview.com with symbols + fields
+// Fields like "EMA9", "EMA21" etc return current EMA values
+// One request can fetch ALL symbols at once — very efficient
 
-const FH_BASE='https://finnhub.io/api/v1';
+const TV_SCAN='https://scanner.tradingview.com';
 
-// ── SYMBOL MAPS ───────────────────────────────────────────────────────
-const FH_SYM={
-  // Indices
-  NIFTY50:'^NSEI',BANKNIFTY:'^NSEBANK',NIFTYMID:'^NSMIDCP100',
-  SENSEX:'^BSESN',SPX:'^GSPC',NDX:'^NDX',DJI:'^DJI',
-  DAX:'^GDAXI',FTSE:'^FTSE',NIKKEI:'^N225',
-  HSI:'^HSI',ASX200:'^AXJO',CAC40:'^FCHI',VIX:'^VIX',
-  // Crypto — Binance USDT pairs
+// TradingView exchange:symbol format
+const TV_SYM={
+  // US Indices
+  SPX:'SP:SPX',NDX:'NASDAQ:NDX',DJI:'DJ:DJI',VIX:'CBOE:VIX',
+  // Global Indices
+  DAX:'XETR:DAX',FTSE:'LSE:UKX',NIKKEI:'TVC:NI225',
+  HSI:'TVC:HSI',ASX200:'ASX:XJO',CAC40:'EURONEXT:PX1',
+  // Indian Indices
+  NIFTY50:'NSE:NIFTY',BANKNIFTY:'NSE:BANKNIFTY',
+  NIFTYMID:'NSE:NIFTYMIDCAP100',SENSEX:'BSE:SENSEX',
+  // US Stocks
+  AAPL:'NASDAQ:AAPL',MSFT:'NASDAQ:MSFT',NVDA:'NASDAQ:NVDA',
+  GOOGL:'NASDAQ:GOOGL',AMZN:'NASDAQ:AMZN',META:'NASDAQ:META',
+  TSLA:'NASDAQ:TSLA',AMD:'NASDAQ:AMD',NFLX:'NASDAQ:NFLX',
+  ORCL:'NASDAQ:ORCL',PLTR:'NASDAQ:PLTR',CRM:'NASDAQ:CRM',
+  SHOP:'NASDAQ:SHOP',SQ:'NYSE:SQ',COIN:'NASDAQ:COIN',
+  // India NSE Stocks
+  RELIANCE:'NSE:RELIANCE',TCS:'NSE:TCS',HDFCBANK:'NSE:HDFCBANK',
+  INFY:'NSE:INFY',ICICIBANK:'NSE:ICICIBANK',HINDUNILVR:'NSE:HINDUNILVR',
+  SBIN:'NSE:SBIN',BHARTIARTL:'NSE:BHARTIARTL',ITC:'NSE:ITC',
+  KOTAKBANK:'NSE:KOTAKBANK',LT:'NSE:LT',HCLTECH:'NSE:HCLTECH',
+  AXISBANK:'NSE:AXISBANK',WIPRO:'NSE:WIPRO',MARUTI:'NSE:MARUTI',
+  TATAMOTORS:'NSE:TATAMOTORS',TITAN:'NSE:TITAN',SUNPHARMA:'NSE:SUNPHARMA',
+  ULTRACEMCO:'NSE:ULTRACEMCO',BAJFINANCE:'NSE:BAJFINANCE',
+  // Crypto
   BTC:'BINANCE:BTCUSDT',ETH:'BINANCE:ETHUSDT',SOL:'BINANCE:SOLUSDT',
   BNB:'BINANCE:BNBUSDT',XRP:'BINANCE:XRPUSDT',ADA:'BINANCE:ADAUSDT',
   AVAX:'BINANCE:AVAXUSDT',DOGE:'BINANCE:DOGEUSDT',DOT:'BINANCE:DOTUSDT',
@@ -1339,36 +1355,79 @@ const FH_SYM={
   ARB:'BINANCE:ARBUSDT',OP:'BINANCE:OPUSDT',INJ:'BINANCE:INJUSDT',
   SUI:'BINANCE:SUIUSDT',APT:'BINANCE:APTUSDT',
   // Forex
-  'EUR/USD':'EUR','GBP/USD':'GBP','USD/JPY':'JPY','AUD/USD':'AUD',
-  'USD/CAD':'CAD','NZD/USD':'NZD','USD/CHF':'CHF',
-  'EUR/GBP':'EURGBP','EUR/JPY':'EURJPY','GBP/JPY':'GBPJPY',
-  // India NSE
-  RELIANCE:'NSE:RELIANCE',TCS:'NSE:TCS',HDFCBANK:'NSE:HDFCBANK',
-  INFY:'NSE:INFY',ICICIBANK:'NSE:ICICIBANK',HINDUNILVR:'NSE:HINDUNILVR',
-  SBIN:'NSE:SBIN',BHARTIARTL:'NSE:BHARTIARTL',ITC:'NSE:ITC',
-  KOTAKBANK:'NSE:KOTAKBANK',LT:'NSE:LT',HCLTECH:'NSE:HCLTECH',
-  AXISBANK:'NSE:AXISBANK',WIPRO:'NSE:WIPRO',MARUTI:'NSE:MARUTI',
-  TATAMOTORS:'NSE:TATAMOTORS',TITAN:'NSE:TITAN',SUNPHARMA:'NSE:SUNPHARMA',
-  ULTRACEMCO:'NSE:ULTRACEMCO',BAJFINANCE:'NSE:BAJFINANCE',
-  // US stocks — plain ticker
-  AAPL:'AAPL',MSFT:'MSFT',NVDA:'NVDA',GOOGL:'GOOGL',AMZN:'AMZN',
-  META:'META',TSLA:'TSLA',AMD:'AMD',NFLX:'NFLX',ORCL:'ORCL',
-  PLTR:'PLTR',CRM:'CRM',SHOP:'SHOP',SQ:'SQ',COIN:'COIN',
+  'EUR/USD':'FX:EURUSD','GBP/USD':'FX:GBPUSD','USD/JPY':'FX:USDJPY',
+  'AUD/USD':'FX:AUDUSD','USD/CAD':'FX:USDCAD','NZD/USD':'FX:NZDUSD',
+  'USD/CHF':'FX:USDCHF','EUR/GBP':'FX:EURGBP','EUR/JPY':'FX:EURJPY',
+  'GBP/JPY':'FX:GBPJPY',
 };
-const CRYPTO_SET=new Set(['BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOGE',
-  'DOT','LINK','MATIC','LTC','UNI','ATOM','NEAR','ARB','OP','INJ','SUI','APT']);
-const FOREX_SET=new Set(['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD',
-  'NZD/USD','USD/CHF','EUR/GBP','EUR/JPY','GBP/JPY']);
 
-function fhSym(sym){return FH_SYM[sym]||sym;}
-function symType(sym){
-  if(CRYPTO_SET.has(sym))return'crypto';
-  if(FOREX_SET.has(sym))return'forex';
-  return'stock'; // stocks + indices
+// TradingView interval codes
+const TV_INTERVAL={
+  '1m':'1','5m':'5','15m':'15','30m':'30',
+  '1h':'60','3h':'180','4h':'240',
+  '1d':'1D','1w':'1W','1M':'1M',
+};
+
+function tvSym(sym){ return TV_SYM[sym]||sym; }
+
+function setStatus(msg){const el=document.getElementById('stMode');if(el)el.textContent=msg;}
+
+// Build TradingView field names for EMA periods and timeframes
+// e.g. EMA9 on 1D = "EMA9" (default), on 1W = "EMA9|1W"
+function tvField(period,tf){
+  const interval=TV_INTERVAL[tf]||'1D';
+  const suffix=interval==='1D'?'':('|'+interval);
+  return `EMA${period}${suffix}`;
 }
 
-// ── EMA COMPUTATION ───────────────────────────────────────────────────
-// closes: array of prices, oldest→newest
+// Fetch all symbols for a given timeframe batch
+// TV scanner accepts up to ~500 symbols per request
+async function fetchTVBatch(syms, tfs){
+  // Build fields: close, change_abs_pct, plus EMA for each period×tf
+  const fields=['close','change_from_open_abs_pct'];
+  S.emas.forEach(ema=>{
+    ema.tfs.forEach(tf=>{
+      if(tfs.includes(tf)){
+        fields.push(tvField(ema.period,tf));
+      }
+    });
+  });
+  // Deduplicate fields
+  const uniqueFields=[...new Set(fields)];
+
+  const tvSyms=syms.map(tvSym);
+
+  const body={
+    symbols:{tickers:tvSyms, query:{types:[]}},
+    columns:uniqueFields,
+  };
+
+  try{
+    const r=await fetch(`${TV_SCAN}/global/scan?fields=${uniqueFields.join(',')}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    if(!r.ok)throw new Error('TV scanner HTTP '+r.status);
+    const data=await r.json();
+    return{data:data.data||[],fields:uniqueFields};
+  }catch(e){
+    // Try alternate endpoint
+    try{
+      const r2=await fetch(`${TV_SCAN}/america/scan`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...body,columns:uniqueFields}),
+      });
+      if(!r2.ok)throw new Error('TV scanner HTTP '+r2.status);
+      const data=await r2.json();
+      return{data:data.data||[],fields:uniqueFields};
+    }catch(e2){
+      throw new Error('TradingView scanner unavailable: '+e2.message);
+    }
+  }
+}
+
 function computeEMA(closes,period){
   if(!closes||closes.length<period)return null;
   const k=2/(period+1);
@@ -1377,255 +1436,91 @@ function computeEMA(closes,period){
   return ema;
 }
 
-// Resample: take last close of every n bars (daily→weekly: n=5)
-function resample(arr,n){
-  if(n<=1)return arr;
-  const out=[];
-  for(let i=n-1;i<arr.length;i+=n)out.push(arr[i]);
-  return out;
-}
+// ── MAIN FETCH ────────────────────────────────────────────────────────
+async function fetchLiveData(syms){
+  const tfs=[...S.activeTfs].filter(tf=>TV_INTERVAL[tf]);
+  if(!tfs.length)tfs.push('1d');
 
-function setStatus(msg){const el=document.getElementById('stMode');if(el)el.textContent=msg;}
+  setStatus('⟳ Fetching from TradingView…');
 
-// ── RATE LIMITER ──────────────────────────────────────────────────────
-function makeLimiter(maxPerMin){
-  let n=0,t=Date.now();
-  return async function(url){
-    const now=Date.now();
-    if(now-t>60000){n=0;t=now;}
-    if(n>=maxPerMin){
-      const w=62000-(now-t);
-      setStatus(`⏳ Rate limit — ${Math.ceil(w/1000)}s…`);
-      await new Promise(r=>setTimeout(r,w));
-      n=0;t=Date.now();
-    }
-    n++;
-    const r=await fetch(url);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    return r.json();
-  };
-}
-const fhFetch=makeLimiter(55);
+  try{
+    const{data,fields}=await fetchTVBatch(syms,tfs);
 
-// ── FETCH ONE SYMBOL ──────────────────────────────────────────────────
-// Returns: {price, prevClose, closes:{tf:[...oldestToNewest]}}
-async function fetchOne(sym,key){
-  const fsym=fhSym(sym);
-  const type=symType(sym);
-  const now=Math.floor(Date.now()/1000);
-  let price=null,prevClose=null;
-  const closes={};
-
-  // Strategy: fetch candles first, use LAST BAR as price
-  // This guarantees price and EMA are on the SAME scale (both split-adjusted)
-  // Finnhub quote and candle history can be on different scales after splits
-
-  const DAY_FROM=now-1825*86400; // 5 years — enough for EMA200 weekly (200 weeks = ~4yr)
-
-  if(type==='forex'){
-    // Forex: quote for current rate, daily candles for EMA
-    try{
-      const q=await fhFetch(`${FH_BASE}/forex/rates?base=USD&token=${key}`);
-      if(q&&q.quote){
-        const[b,qt]=sym.split('/');
-        if(b==='USD'&&q.quote[qt]) price=1/q.quote[qt];
-        else if(qt==='USD'&&q.quote[b]) price=q.quote[b];
-        else if(q.quote[b]&&q.quote[qt]) price=q.quote[b]/q.quote[qt];
-        prevClose=price;
-      }
-    }catch(e){console.warn('[FH] forex rate failed',sym,e.message);}
-    try{
-      const pair=sym.replace('/','_');
-      const d=await fhFetch(`${FH_BASE}/forex/candle?symbol=OANDA:${pair}&resolution=D&count=1500&token=${key}`);
-      if(d&&d.s==='ok'&&d.c?.length){
-        closes['1d']=[...d.c];
-        closes['1w']=resample(closes['1d'],5);
-        closes['1M']=resample(closes['1d'],21);
-        if(!price) price=closes['1d'][closes['1d'].length-1];
-        if(!prevClose) prevClose=closes['1d'][closes['1d'].length-2]||price;
-      }
-    }catch(e){console.warn('[FH] forex candle failed',sym,e.message);}
-
-  }else if(type==='crypto'){
-    // Crypto: try 1h first (Binance feed), fall back to daily
-    try{
-      const H1_FROM=now-365*86400;
-      const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=60&from=${H1_FROM}&to=${now}&token=${key}`);
-      if(d&&d.s==='ok'&&d.c?.length){
-        const h1=[...d.c];
-        closes['1h']=h1;
-        closes['4h']=resample(h1,4);
-        closes['3h']=resample(h1,3);
-        closes['1d']=resample(h1,24);
-        closes['1w']=resample(closes['1d'],5);
-        closes['1M']=resample(closes['1d'],21);
-        price=h1[h1.length-1];
-        prevClose=h1[h1.length-2]||price;
-      }
-    }catch(e){console.warn('[FH] crypto 1h failed',sym,e.message);}
-    if(!closes['1d']){
-      try{
-        const d=await fhFetch(`${FH_BASE}/crypto/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&count=1500&token=${key}`);
-        if(d&&d.s==='ok'&&d.c?.length){
-          closes['1d']=[...d.c];
-          closes['1w']=resample(closes['1d'],5);
-          closes['1M']=resample(closes['1d'],21);
-          price=closes['1d'][closes['1d'].length-1];
-          prevClose=closes['1d'][closes['1d'].length-2]||price;
-        }
-      }catch(e){console.warn('[FH] crypto daily failed',sym,e.message);}
+    if(!data.length){
+      setStatus('No data returned from TradingView scanner');
+      return null;
     }
 
-  }else{
-    // Stocks & Indices:
-    // 1. Quote = live real-time price (d.c = current, d.pc = prev close)
-    // 2. Candles = historical EOD for EMA computation
-    // 3. Scale-adjust candle history to match live quote price
-    //    (handles splits: if quote=$183 but last candle=$877, ratio=0.209)
+    const results=data.map(row=>{
+      // row.s = "NASDAQ:AAPL", row.d = [close, chg_pct, ema1, ema2, ...]
+      const tvs=row.s;
+      // Find our symbol from TV symbol
+      const sym=syms.find(s=>tvSym(s)===tvs)||tvs;
+      const vals=row.d||[];
+      const price=vals[0]||null;
+      const chgPct=vals[1]||0;
+      const sigs=[];
 
-    // Step 1: Live quote
-    let livePrice=null, livePrevClose=null;
-    try{
-      const q=await fhFetch(`${FH_BASE}/quote?symbol=${encodeURIComponent(fsym)}&token=${key}`);
-      console.log(`[FH] quote ${sym}:`,JSON.stringify(q));
-      if(q&&(q.error||q.message||q.s==='error'))throw new Error('Invalid Finnhub key — check your key');
-      if(q&&q.c&&q.c!==0){
-        livePrice=q.c;
-        livePrevClose=q.pc||q.c;
-        console.log(`[FH] ${sym} live price: $${livePrice}, prevClose: $${livePrevClose}`);
-      } else {
-        console.warn(`[FH] ${sym} quote returned no price:`,q);
-      }
-    }catch(e){
-      if(e.message.includes('Invalid')||e.message.includes('401'))throw e;
-      console.warn('[FH] stock quote failed',sym,e.message);
-    }
-
-    // Step 2: Daily candles for EMA history
-    try{
-      // Request 1500 daily bars explicitly — more reliable than date range on free tier
-      const d=await fhFetch(`${FH_BASE}/stock/candle?symbol=${encodeURIComponent(fsym)}&resolution=D&count=1500&token=${key}`);
-      if(d&&d.s==='ok'&&d.c?.length){
-        let daily=[...d.c]; // raw closes oldest→newest
-
-        // Step 3: Scale-adjust if quote differs from last candle
-        // This corrects for stock splits between candle history and live price
-        const lastCandle=daily[daily.length-1];
-        if(livePrice&&lastCandle&&Math.abs(livePrice/lastCandle-1)>0.05){
-          // Price ratio differs by >5% — apply adjustment to entire history
-          const ratio=livePrice/lastCandle;
-          daily=daily.map(p=>p*ratio);
-          console.log(`[FH] ${sym}: scale-adjusted candles by ${ratio.toFixed(4)} (split detected)`);
-        }
-
-        closes['1d']=daily;
-        closes['1w']=resample(daily,5);
-        closes['1M']=resample(daily,21);
-        const last1d=closes['1d'][closes['1d'].length-1];
-        const last1w=closes['1w'][closes['1w'].length-1];
-        console.log(`[FH] ${sym}: ${closes['1d'].length} daily bars, last=$${last1d?.toFixed(2)} | ${closes['1w'].length} weekly bars, last=$${last1w?.toFixed(2)}`);
-        if(Math.abs(last1d-last1w)<0.01) console.warn(`[FH] ${sym}: WARNING - 1d and 1w last bars identical, resampling may have failed`);
-      }else{
-        console.warn('[FH] stock daily no data',sym,d?.s);
-      }
-    }catch(e){console.warn('[FH] stock candle failed',sym,e.message);}
-
-    // Use live quote as price; fall back to last candle
-    price=livePrice||(closes['1d']?.[closes['1d'].length-1])||null;
-    prevClose=livePrevClose||(closes['1d']?.[closes['1d'].length-2])||price;
-    console.log(`[FH] ${sym} FINAL: price=$${price?.toFixed(2)} source=${livePrice?'LIVE_QUOTE':'LAST_CANDLE'} prevClose=$${prevClose?.toFixed(2)}`);
-  }
-
-  return{price,prevClose,closes};
-}
-
-// ── CACHE + QUEUE ─────────────────────────────────────────────────────
-const _cache={};
-let _queue=[],_running=false;
-
-function rebuildFromCache(){
-  const syms=S.showFavs?[...S.favs]:MARKETS[S.mkt];
-  S.syms=syms.map(sym=>{
-    const c=_cache[sym];
-    if(!c||c.price===null)return{sym,price:BASE_PX[sym]||100,chg:0,sigs:[],_stale:true};
-    const price=c.price||BASE_PX[sym]||100;
-    const prev=c.prevClose||price;
-    const chg=prev&&prev!==price?parseFloat(((price-prev)/prev*100).toFixed(2)):0;
-    const sigs=[];
-    S.emas.forEach(ema=>{
-      ema.tfs.forEach(tf=>{
-        if(!S.activeTfs.has(tf))return;
-        const cl=c.closes?.[tf];
-        if(!cl?.length)return;
-        const emaVal=computeEMA(cl,ema.period);
-        if(emaVal===null)return;
+      fields.slice(2).forEach((field,i)=>{
+        const emaVal=vals[i+2];
+        if(!emaVal||!price)return;
+        // Parse field: "EMA9" or "EMA9|1W"
+        const match=field.match(/EMA(\d+)(?:\|(.+))?/);
+        if(!match)return;
+        const period=parseInt(match[1]);
+        const tvInterval=match[2]||'1D';
+        // Find our tf from TV interval
+        const tf=Object.entries(TV_INTERVAL).find(([k,v])=>v===tvInterval)?.[0]||'1d';
         const dist=parseFloat(((price-emaVal)/emaVal*100).toFixed(2));
         const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
-        sigs.push({tf,period:ema.period,dist,type,col:ema.col});
+        // Find EMA color
+        const emaConfig=S.emas.find(e=>e.period===period);
+        sigs.push({tf,period,dist,type,col:emaConfig?.col||'#4f8ef7'});
       });
+
+      return{sym,price,chg:parseFloat(chgPct.toFixed(2)),sigs};
     });
-    return{sym,price,chg,sigs};
-  });
-  render();
-}
 
-async function runQueue(){
-  if(_running)return;
-  _running=true;
-  while(_queue.length){
-    const sym=_queue.shift();
-    const done=Object.keys(_cache).length;
-    const total=done+_queue.length+1;
-    setStatus(`⟳ ${sym} (${done+1}/${total})…`);
-    try{
-      const data=await fetchOne(sym,S.fhKey);
-      _cache[sym]={...data,ts:Date.now()};
-      rebuildFromCache();
-    }catch(e){
-      setStatus('✗ '+e.message.slice(0,70));
-      toast(e.message.slice(0,80),'✗');
-      if(e.message.includes('Invalid')||e.message.includes('401')){_queue=[];break;}
-    }
+    setStatus(`Live · TradingView · ${results.length} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+    return results;
+
+  }catch(e){
+    console.error('[TV]',e.message);
+    setStatus('✗ '+e.message.slice(0,60));
+    toast(e.message.slice(0,80),'✗');
+    return null;
   }
-  _running=false;
-  const live=Object.values(_cache).filter(c=>c.price!==null).length;
-  setStatus(`Live · Finnhub · ${live} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
 }
 
-async function fetchLiveData(syms){
-  if(!S.fhKey)return null;
-  const fresh=syms.filter(s=>!_cache[s]);
-  const stale=syms.filter(s=>_cache[s]&&(Date.now()-(_cache[s].ts||0))>300000);
-  _queue=[...fresh,...stale];
-  if(Object.keys(_cache).length)rebuildFromCache();
-  runQueue();
-  return'queued';
-}
+// Simple cache to avoid hammering on tab switches
+const _cache={};
 
 
 async function doRefresh(){
   clearTimeout(_rt);
-  if(S.fhKey&&!S.demo){
+  if(!S.demo){
     const syms=S.showFavs?[...S.favs]:[...MARKETS[S.mkt]];
     if(syms&&syms.length){
-      const result=await fetchLiveData(syms);
-      if(result){ renderLog();checkAlerts();scheduleRefresh();return; }
+      const tbody=document.getElementById('tbody');
+      if(tbody)tbody.innerHTML='<tr><td colspan="6" class="no-data" style="opacity:.5">⟳ Fetching live data…</td></tr>';
+      const live=await fetchLiveData(syms);
+      if(live){S.syms=live;render();renderLog();checkAlerts();scheduleRefresh();return;}
     }
   }
-  // demo fallback
   buildData();render();renderLog();checkAlerts();scheduleRefresh();
 }
 function scheduleRefresh(){
   clearTimeout(_rt);
   // Refresh every 5 min live (queue handles per-symbol pacing), 30s demo
-  const interval=S.apiKey&&!S.demo?300000:30000;
+  const interval=S.demo?30000:60000; // 60s live refresh
   _rt=setTimeout(doRefresh,interval);
 }
 function updateStatusMode(){
   const ldot=document.getElementById('ldot'),stMode=document.getElementById('stMode');
   const btnKey=document.getElementById('btnKey');
-  if(S.fhKey&&!S.demo){
-    ldot.className='ldot live';stMode.textContent='Live · Finnhub';
+  if(!S.demo){
+    ldot.className='ldot live';
+    stMode.textContent='Live · Alpha Vantage';
     btnKey.style.borderColor='rgba(0,208,132,.3)';btnKey.style.color='var(--bull)';
   } else {
     ldot.className='ldot demo';stMode.textContent='Demo mode';
@@ -1739,7 +1634,9 @@ function init(){
     console.log('EMA config reset: was',storedPeriods,'→ now',validPeriods);
   }
   localStorage.setItem('ema_cfg_ver','4.3');
-  if(S.fhKey){S.demo=false;}
+  // TV scanner needs no key — enable live mode by default
+  S.demo=false;
+  document.getElementById('demoPill').style.display='none';
   const restored=restoreFromUrl();
   if(localStorage.getItem('ema_b'))document.getElementById('promo').style.display='none';
   if(!S.demo)document.getElementById('demoPill').style.display='none';
