@@ -1310,35 +1310,25 @@ function clearApiKey(){
 }
 function setApiMsg(msg,col){const el=document.getElementById('apiMsg');el.textContent=msg;el.style.color=col;}
 
-// ── LIVE DATA ENGINE — TradingView Scanner API ───────────────────────
-// Source: TradingView's public scanner (same data their screener uses)
-// No API key. No CORS issues. No rate limits.
-// Returns: live price, % change, EMA values for any symbol/timeframe
-//
-// How it works:
-// POST to scanner.tradingview.com with symbols + fields
-// Fields like "EMA9", "EMA21" etc return current EMA values
-// One request can fetch ALL symbols at once — very efficient
+// ── LIVE DATA ENGINE — TradingView Scanner ───────────────────────────
+// No API key. No cost. No rate limits.
+// Uses TradingView's public scanner API — same source as their screener.
+// One POST per timeframe → returns EMA values for ALL symbols at once.
 
 const TV_SCAN='https://scanner.tradingview.com';
 
 // TradingView exchange:symbol format
 const TV_SYM={
-  // US Indices
   SPX:'SP:SPX',NDX:'NASDAQ:NDX',DJI:'DJ:DJI',VIX:'CBOE:VIX',
-  // Global Indices
   DAX:'XETR:DAX',FTSE:'LSE:UKX',NIKKEI:'TVC:NI225',
   HSI:'TVC:HSI',ASX200:'ASX:XJO',CAC40:'EURONEXT:PX1',
-  // Indian Indices
   NIFTY50:'NSE:NIFTY',BANKNIFTY:'NSE:BANKNIFTY',
   NIFTYMID:'NSE:NIFTYMIDCAP100',SENSEX:'BSE:SENSEX',
-  // US Stocks
   AAPL:'NASDAQ:AAPL',MSFT:'NASDAQ:MSFT',NVDA:'NASDAQ:NVDA',
   GOOGL:'NASDAQ:GOOGL',AMZN:'NASDAQ:AMZN',META:'NASDAQ:META',
   TSLA:'NASDAQ:TSLA',AMD:'NASDAQ:AMD',NFLX:'NASDAQ:NFLX',
   ORCL:'NASDAQ:ORCL',PLTR:'NASDAQ:PLTR',CRM:'NASDAQ:CRM',
   SHOP:'NASDAQ:SHOP',SQ:'NYSE:SQ',COIN:'NASDAQ:COIN',
-  // India NSE Stocks
   RELIANCE:'NSE:RELIANCE',TCS:'NSE:TCS',HDFCBANK:'NSE:HDFCBANK',
   INFY:'NSE:INFY',ICICIBANK:'NSE:ICICIBANK',HINDUNILVR:'NSE:HINDUNILVR',
   SBIN:'NSE:SBIN',BHARTIARTL:'NSE:BHARTIARTL',ITC:'NSE:ITC',
@@ -1346,7 +1336,6 @@ const TV_SYM={
   AXISBANK:'NSE:AXISBANK',WIPRO:'NSE:WIPRO',MARUTI:'NSE:MARUTI',
   TATAMOTORS:'NSE:TATAMOTORS',TITAN:'NSE:TITAN',SUNPHARMA:'NSE:SUNPHARMA',
   ULTRACEMCO:'NSE:ULTRACEMCO',BAJFINANCE:'NSE:BAJFINANCE',
-  // Crypto
   BTC:'BINANCE:BTCUSDT',ETH:'BINANCE:ETHUSDT',SOL:'BINANCE:SOLUSDT',
   BNB:'BINANCE:BNBUSDT',XRP:'BINANCE:XRPUSDT',ADA:'BINANCE:ADAUSDT',
   AVAX:'BINANCE:AVAXUSDT',DOGE:'BINANCE:DOGEUSDT',DOT:'BINANCE:DOTUSDT',
@@ -1354,14 +1343,13 @@ const TV_SYM={
   UNI:'BINANCE:UNIUSDT',ATOM:'BINANCE:ATOMUSDT',NEAR:'BINANCE:NEARUSDT',
   ARB:'BINANCE:ARBUSDT',OP:'BINANCE:OPUSDT',INJ:'BINANCE:INJUSDT',
   SUI:'BINANCE:SUIUSDT',APT:'BINANCE:APTUSDT',
-  // Forex
   'EUR/USD':'FX:EURUSD','GBP/USD':'FX:GBPUSD','USD/JPY':'FX:USDJPY',
   'AUD/USD':'FX:AUDUSD','USD/CAD':'FX:USDCAD','NZD/USD':'FX:NZDUSD',
   'USD/CHF':'FX:USDCHF','EUR/GBP':'FX:EURGBP','EUR/JPY':'FX:EURJPY',
   'GBP/JPY':'FX:GBPJPY',
 };
 
-// TradingView interval codes
+// TV interval string per our TF key
 const TV_INTERVAL={
   '1m':'1','5m':'5','15m':'15','30m':'30',
   '1h':'60','3h':'180','4h':'240',
@@ -1369,119 +1357,103 @@ const TV_INTERVAL={
 };
 
 function tvSym(sym){ return TV_SYM[sym]||sym; }
-
 function setStatus(msg){const el=document.getElementById('stMode');if(el)el.textContent=msg;}
 
-// Build TradingView field names for EMA periods and timeframes
-// e.g. EMA9 on 1D = "EMA9" (default), on 1W = "EMA9|1W"
-function tvField(period,tf){
+// Fetch EMA values for all symbols on ONE specific timeframe
+// TV scanner returns columns: close, change_from_open_abs_pct, EMA9, EMA21, EMA50, EMA200
+async function fetchTVTimeframe(syms, tf){
   const interval=TV_INTERVAL[tf]||'1D';
-  const suffix=interval==='1D'?'':('|'+interval);
-  return `EMA${period}${suffix}`;
-}
-
-// Fetch all symbols for a given timeframe batch
-// TV scanner accepts up to ~500 symbols per request
-async function fetchTVBatch(syms, tfs){
-  // Build fields: close, change_abs_pct, plus EMA for each period×tf
-  const fields=['close','change_from_open_abs_pct'];
-  S.emas.forEach(ema=>{
-    ema.tfs.forEach(tf=>{
-      if(tfs.includes(tf)){
-        fields.push(tvField(ema.period,tf));
-      }
-    });
-  });
-  // Deduplicate fields
-  const uniqueFields=[...new Set(fields)];
-
   const tvSyms=syms.map(tvSym);
 
+  // Build column list: price + pct + one EMA per configured period
+  const emaCols=S.emas.map(e=>`EMA${e.period}`);
+  const columns=['close','change_from_open_abs_pct',...new Set(emaCols)];
+
   const body={
-    symbols:{tickers:tvSyms, query:{types:[]}},
-    columns:uniqueFields,
+    symbols:{tickers:tvSyms},
+    columns,
   };
 
-  try{
-    const r=await fetch(`${TV_SCAN}/global/scan?fields=${uniqueFields.join(',')}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body),
-    });
-    if(!r.ok)throw new Error('TV scanner HTTP '+r.status);
-    const data=await r.json();
-    return{data:data.data||[],fields:uniqueFields};
-  }catch(e){
-    // Try alternate endpoint
-    try{
-      const r2=await fetch(`${TV_SCAN}/america/scan`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({...body,columns:uniqueFields}),
-      });
-      if(!r2.ok)throw new Error('TV scanner HTTP '+r2.status);
-      const data=await r2.json();
-      return{data:data.data||[],fields:uniqueFields};
-    }catch(e2){
-      throw new Error('TradingView scanner unavailable: '+e2.message);
-    }
-  }
+  // TV scanner endpoint — interval goes in URL for multi-TF
+  const url=interval==='1D'
+    ? `${TV_SCAN}/global/scan`
+    : `${TV_SCAN}/global/scan?interval=${interval}`;
+
+  const r=await fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body),
+  });
+  if(!r.ok) throw new Error(`TV scanner ${r.status} for ${tf}`);
+  const data=await r.json();
+  return{rows:data.data||[],columns};
 }
 
-function computeEMA(closes,period){
-  if(!closes||closes.length<period)return null;
-  const k=2/(period+1);
-  let ema=closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
-  for(let i=period;i<closes.length;i++)ema=closes[i]*k+ema*(1-k);
-  return ema;
-}
-
-// ── MAIN FETCH ────────────────────────────────────────────────────────
 async function fetchLiveData(syms){
+  // Get active TFs that TV supports
   const tfs=[...S.activeTfs].filter(tf=>TV_INTERVAL[tf]);
-  if(!tfs.length)tfs.push('1d');
+  if(!tfs.length) tfs.push('1d');
 
   setStatus('⟳ Fetching from TradingView…');
 
-  try{
-    const{data,fields}=await fetchTVBatch(syms,tfs);
+  // Build result map: sym → {price, chg, emasByTf:{tf:{period:value}}}
+  const symMap={};
+  syms.forEach(s=>{symMap[tvSym(s)]={sym:s,price:null,chg:0,emasByTf:{}};});
 
-    if(!data.length){
-      setStatus('No data returned from TradingView scanner');
-      return null;
+  try{
+    // One request per timeframe — all symbols in each request
+    for(const tf of tfs){
+      let rows,columns;
+      try{
+        ({rows,columns}=await fetchTVTimeframe(syms,tf));
+      }catch(e){
+        console.warn('[TV] failed for TF',tf,e.message);
+        continue;
+      }
+
+      // Parse rows
+      rows.forEach(row=>{
+        const entry=symMap[row.s];
+        if(!entry) return;
+        const vals=row.d||[];
+        // columns: [close, change_pct, EMA9, EMA21, ...]
+        if(vals[0]!=null) entry.price=vals[0];
+        if(vals[1]!=null) entry.chg=parseFloat((vals[1]||0).toFixed(2));
+        entry.emasByTf[tf]={};
+        columns.slice(2).forEach((col,i)=>{
+          const period=parseInt(col.replace('EMA',''));
+          if(!isNaN(period)&&vals[i+2]!=null){
+            entry.emasByTf[tf][period]=vals[i+2];
+          }
+        });
+      });
     }
 
-    const results=data.map(row=>{
-      // row.s = "NASDAQ:AAPL", row.d = [close, chg_pct, ema1, ema2, ...]
-      const tvs=row.s;
-      // Find our symbol from TV symbol
-      const sym=syms.find(s=>tvSym(s)===tvs)||tvs;
-      const vals=row.d||[];
-      const price=vals[0]||null;
-      const chgPct=vals[1]||0;
+    // Build final S.syms array
+    const results=syms.map(sym=>{
+      const tv=tvSym(sym);
+      const entry=symMap[tv];
+      if(!entry||entry.price==null) return{sym,price:BASE_PX[sym]||100,chg:0,sigs:[]};
+      const price=entry.price;
+      const chg=entry.chg;
       const sigs=[];
 
-      fields.slice(2).forEach((field,i)=>{
-        const emaVal=vals[i+2];
-        if(!emaVal||!price)return;
-        // Parse field: "EMA9" or "EMA9|1W"
-        const match=field.match(/EMA(\d+)(?:\|(.+))?/);
-        if(!match)return;
-        const period=parseInt(match[1]);
-        const tvInterval=match[2]||'1D';
-        // Find our tf from TV interval
-        const tf=Object.entries(TV_INTERVAL).find(([k,v])=>v===tvInterval)?.[0]||'1d';
-        const dist=parseFloat(((price-emaVal)/emaVal*100).toFixed(2));
-        const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
-        // Find EMA color
-        const emaConfig=S.emas.find(e=>e.period===period);
-        sigs.push({tf,period,dist,type,col:emaConfig?.col||'#4f8ef7'});
+      S.emas.forEach(ema=>{
+        ema.tfs.forEach(tf=>{
+          if(!S.activeTfs.has(tf)) return;
+          const emaVal=entry.emasByTf[tf]?.[ema.period];
+          if(!emaVal) return;
+          const dist=parseFloat(((price-emaVal)/emaVal*100).toFixed(2));
+          const type=Math.abs(dist)<.15?'touch':Math.abs(dist)<.65?'near':dist>0?'bull':'bear';
+          sigs.push({tf,period:ema.period,dist,type,col:ema.col});
+        });
       });
 
-      return{sym,price,chg:parseFloat(chgPct.toFixed(2)),sigs};
+      return{sym,price,chg,sigs};
     });
 
-    setStatus(`Live · TradingView · ${results.length} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+    const live=results.filter(r=>r.price&&r.price!==BASE_PX[r.sym]).length;
+    setStatus(`Live · TradingView · ${live} symbols · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
     return results;
 
   }catch(e){
@@ -1492,7 +1464,7 @@ async function fetchLiveData(syms){
   }
 }
 
-// Simple cache to avoid hammering on tab switches
+// Minimal cache stub (TV fetches fresh each time)
 const _cache={};
 
 
